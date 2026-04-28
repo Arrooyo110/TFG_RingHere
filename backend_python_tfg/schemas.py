@@ -17,3 +17,26 @@ class AlarmaResponse(AlarmaBase):
 
     class Config:
         from_attributes = True
+
+# --- ESQUEMAS DE USUARIO ---
+class UsuarioBase(BaseModel):
+    email: str
+    full_name: str | None = None
+
+class UsuarioCreate(UsuarioBase):
+    password: str
+
+class UsuarioResponse(UsuarioBase):
+    id: int
+    role: str
+
+    class Config:
+        from_attributes = True
+
+# --- ESQUEMAS PARA EL TOKEN JWT ---
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    email: str | None = None
