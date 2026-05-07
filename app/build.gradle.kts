@@ -69,4 +69,16 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     // --- LIBRERÍA PARA USAR VIEWMODEL EN COMPOSE ---
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+    // Retrofit para peticiones de red
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    // Convertidor de JSON (Gson)
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    // Navegación en Jetpack Compose
+    implementation("androidx.navigation:navigation-compose:2.7.7")
+    // Iconos extendidos de Material Design
+    implementation("androidx.compose.material:material-icons-extended")
+    // Google Maps para Jetpack Compose
+    implementation("com.google.maps.android:maps-compose:4.3.3")
+// Librería oficial de Google Play Services para Mapas
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
 }
