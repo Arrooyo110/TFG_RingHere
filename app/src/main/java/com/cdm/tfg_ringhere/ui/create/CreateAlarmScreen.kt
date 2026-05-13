@@ -47,6 +47,8 @@ fun CreateAlarmScreen(
     // Este estado controla la lógica y ahora también el color
     var triggerAlEntrar by remember { mutableStateOf(true) }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+
     val ubicacionSeleccionada = LatLng(lat, lng)
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(ubicacionSeleccionada, 15f)
@@ -191,8 +193,27 @@ fun CreateAlarmScreen(
             // Botón Guardar
             Button(
                 onClick = {
-                    // Próximo paso: guardar datos reales
-                    navController.popBackStack("dashboard", inclusive = false)
+                    if (nombreAlarma.isNotBlank()) {
+                        // Si hay nombre, guardamos y volvemos
+                        viewModel.guardarNuevaAlarma(
+                            nombre = nombreAlarma,
+                            lat = lat,
+                            lng = lng,
+                            radio = radioValue,
+                            alEntrar = triggerAlEntrar,
+                            context = context
+                        )
+                        navController.navigate("dashboard") {
+                            popUpTo("dashboard") { inclusive = true }
+                        }
+                    } else {
+                        // --- NUEVO: Alerta no invasiva si está vacío ---
+                        android.widget.Toast.makeText(
+                            context,
+                            "Por favor, ponle un nombre a la alarma",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp).padding(bottom = 8.dp),
                 shape = RoundedCornerShape(28.dp),

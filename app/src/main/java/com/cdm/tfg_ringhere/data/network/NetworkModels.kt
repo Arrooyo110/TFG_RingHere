@@ -8,10 +8,16 @@ data class TokenResponse(
 
 // Lo que recibimos al pedir las Alarmas (Fíjate que es igual al schema de Python)
 data class AlarmaNetwork(
-    val id: Int,
+    val id: String,
     val nombre: String,
     val latitud: Double,
     val longitud: Double,
     val radio: Double,
     val is_active: Boolean
+)
+
+data class UsuarioCreate(
+    val email: String,
+    val password: String,
+    val full_name: String
 )

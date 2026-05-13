@@ -1,4 +1,6 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey
+import uuid
+
+from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, BigInteger
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -17,13 +19,14 @@ class Usuario(Base):
 class Alarma(Base):
     __tablename__ = "alarmas"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     nombre = Column(String, index=True)
     latitud = Column(Float)
     longitud = Column(Float)
     radio = Column(Float)
     is_active = Column(Boolean, default=True)
     
+    fecha_creacion = Column(BigInteger, default=lambda: int(time.time() * 1000))
     # Clave foránea: a quién pertenece esta alarma
     usuario_id = Column(Integer, ForeignKey("usuarios.id"))
     

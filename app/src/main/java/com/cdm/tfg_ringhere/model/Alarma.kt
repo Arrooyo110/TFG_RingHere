@@ -2,15 +2,26 @@ package com.cdm.tfg_ringhere.model
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.google.gson.annotations.SerializedName
+import java.util.UUID
 
 @Entity(tableName = "alarmas")
 data class Alarma(
-    @PrimaryKey(autoGenerate = true)
-    val id: Int = 0,
+    // --- QUITAMOS el autoGenerate y le ponemos un UUID por defecto ---
+    @PrimaryKey
+    val id: String = UUID.randomUUID().toString(),
+
     val nombre: String,
     val latitud: Double,
     val longitud: Double,
-    val radio: Float, // Radio de la geovalla en metros
-    val isAlEntrar: Boolean, // true = Al entrar, false = Al salir
-    val isActive: Boolean = true
+    val radio: Float,
+
+    @SerializedName("is_al_entrar")
+    val isAlEntrar: Boolean,
+
+    @SerializedName("is_active")
+    val isActive: Boolean = true,
+
+    @SerializedName("fecha_creacion")
+    val fechaCreacion: Long = System.currentTimeMillis()
 )

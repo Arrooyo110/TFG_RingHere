@@ -63,6 +63,80 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
         }
     }
 
+    fun guardarNuevaAlarma(
+        nombre: String,
+        lat: Double,
+        lng: Double,
+        radio: Float,
+        alEntrar: Boolean,
+        context: android.content.Context
+    ) {
+        viewModelScope.launch {
+            // 1. Creamos la alarma. Kotlin ya le asigna un UUID
+            val nuevaAlarma = Alarma(
+                nombre = nombre,
+                latitud = lat,
+                longitud = lng,
+                radio = radio,
+                isAlEntrar = alEntrar,
+                isActive = true
+            )
+
+            // 2. ¡LA GUARDAMOS INMEDIATAMENTE EN EL MÓVIL! (Offline-First 100%)
+            repository.insert(nuevaAlarma)
+
+            // 3. EN SEGUNDO PLANO, intentamos enviársela a Python
+            try {
+                val apiService = com.cdm.tfg_ringhere.data.network.RetrofitClient.getApiService(context)
+                val response = apiService.crearAlarma(nuevaAlarma)
+
+                if (response.isSuccessful) {
+                    android.util.Log.d("API_SYNC", "Alarma sincronizada en la nube con ID: ${nuevaAlarma.id}")
+                }
+            } catch (e: Exception) {
+                // Si no hay internet, no pasa nada. La alarma YA está guardada y funcionando en el móvil.
+                android.util.Log.e("API_SYNC", "Sin internet. Guardada solo en local: ${e.message}")
+            }
+        }
+    }
+
+    fun eliminarAlarma(alarma: Alarma, context: android.content.Context) {
+        viewModelScope.launch {
+            // 1. Borramos localmente
+            repository.delete(alarma)
+
+            // 2. Borramos en la Nube
+            try {
+                val apiService = com.cdm.tfg_ringhere.data.network.RetrofitClient.getApiService(context)
+                val response = apiService.borrarAlarma(alarma.id)
+                if (response.isSuccessful) {
+                    android.util.Log.d("API_SYNC", "Alarma eliminada del servidor")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("API_SYNC", "Error borrando en servidor: ${e.message}")
+            }
+        }
+    }
+
+    fun actualizarEstadoAlarma(alarma: Alarma, nuevoEstado: Boolean, context: android.content.Context) {
+        viewModelScope.launch {
+            // 1. Actualizamos localmente
+            val alarmaActualizada = alarma.copy(isActive = nuevoEstado)
+            repository.insert(alarmaActualizada)
+
+            // 2. Actualizamos en la Nube
+            try {
+                val apiService = com.cdm.tfg_ringhere.data.network.RetrofitClient.getApiService(context)
+                val response = apiService.actualizarAlarma(alarma.id, alarmaActualizada)
+                if (response.isSuccessful) {
+                    android.util.Log.d("API_SYNC", "Estado actualizado en el servidor")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("API_SYNC", "Error actualizando en servidor: ${e.message}")
+            }
+        }
+    }
+
 }
 
 // Necesitamos este "Factory" para poder pasarle el Repositorio al ViewModel cuando lo creemos
@@ -74,4 +148,5 @@ class AlarmaViewModelFactory(private val repository: AlarmaRepository) : ViewMod
         }
         throw IllegalArgumentException("Clase ViewModel desconocida")
     }
+
 }

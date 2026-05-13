@@ -1,12 +1,11 @@
-from fastapi import FastAPI, Depends, HTTPException
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import FastAPI, Depends, HTTPException, Body
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+from jose import JWTError, jwt
 import models
 import schemas
 import auth # Nuestro archivo de seguridad
 from database import engine, get_db
-from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
 
 # Crea el archivo de la base de datos física si no existe
 models.Base.metadata.create_all(bind=engine)
@@ -78,7 +77,6 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 # Endpoint 1: Crear una alarma (Solo para el usuario logueado)
 @app.post("/alarmas/", response_model=schemas.AlarmaResponse)
 def crear_alarma(alarma: schemas.AlarmaCreate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(get_current_user)):
-    
     # Añadimos el usuario_id automáticamente sacándolo del token
     db_alarma = models.Alarma(**alarma.model_dump(), usuario_id=current_user.id)
     
@@ -90,24 +88,28 @@ def crear_alarma(alarma: schemas.AlarmaCreate, db: Session = Depends(get_db), cu
 # Endpoint 2: Leer MIS alarmas
 @app.get("/alarmas/", response_model=list[schemas.AlarmaResponse])
 def leer_alarmas(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: models.Usuario = Depends(get_current_user)):
-    
     # Filtramos la base de datos para que solo devuelva las alarmas de ESTE usuario
     alarmas = db.query(models.Alarma).filter(models.Alarma.usuario_id == current_user.id).offset(skip).limit(limit).all()
     return alarmas
 
 # Endpoint 3: Actualizar una alarma existente (PUT) protegida
 @app.put("/alarmas/{alarma_id}", response_model=schemas.AlarmaResponse)
-def actualizar_alarma(alarma_id: int, alarma_actualizada: schemas.AlarmaCreate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(get_current_user)):
-    
+def actualizar_alarma(
+    alarma_id: str, 
+    alarma_actualizada: dict = Body(...), # Usamos dict para asegurar que recibimos todos los campos de Android (como is_active)
+    db: Session = Depends(get_db), 
+    current_user: models.Usuario = Depends(get_current_user)
+):
     # Buscamos la alarma, asegurándonos de que le pertenece al usuario actual
     db_alarma = db.query(models.Alarma).filter(models.Alarma.id == alarma_id, models.Alarma.usuario_id == current_user.id).first()
     
     if db_alarma is None:
         raise HTTPException(status_code=404, detail="Alarma no encontrada o no tienes permisos para editarla")
     
-    # Actualizamos los datos
-    for key, value in alarma_actualizada.model_dump().items():
-        setattr(db_alarma, key, value)
+    # Actualizamos los datos dinámicamente comprobando que la columna exista
+    for key, value in alarma_actualizada.items():
+        if hasattr(db_alarma, key) and key != "id": # Evitamos sobreescribir la clave primaria accidentalmente
+            setattr(db_alarma, key, value)
         
     db.commit()
     db.refresh(db_alarma)
@@ -115,8 +117,7 @@ def actualizar_alarma(alarma_id: int, alarma_actualizada: schemas.AlarmaCreate, 
 
 # Endpoint 4: Borrar una alarma (DELETE) protegida
 @app.delete("/alarmas/{alarma_id}")
-def borrar_alarma(alarma_id: int, db: Session = Depends(get_db), current_user: models.Usuario = Depends(get_current_user)):
-    
+def borrar_alarma(alarma_id: str, db: Session = Depends(get_db), current_user: models.Usuario = Depends(get_current_user)):
     # Buscamos la alarma, asegurándonos de que le pertenece al usuario actual
     db_alarma = db.query(models.Alarma).filter(models.Alarma.id == alarma_id, models.Alarma.usuario_id == current_user.id).first()
     

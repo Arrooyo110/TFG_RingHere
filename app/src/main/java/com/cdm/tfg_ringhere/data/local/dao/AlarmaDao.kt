@@ -6,13 +6,12 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AlarmaDao {
-// Crea las funciones para insertar una alarma, borrarla y obtener todas usando Flow
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAlarma(alarma: Alarma)
 
     @Delete
     suspend fun deleteAlarma(alarma: Alarma)
 
-    @Query("SELECT * FROM alarmas")
+    @Query("SELECT * FROM alarmas ORDER BY fechaCreacion DESC")
     fun getAllAlarmas(): Flow<List<Alarma>>
 }

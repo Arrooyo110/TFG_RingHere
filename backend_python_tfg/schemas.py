@@ -7,13 +7,14 @@ class AlarmaBase(BaseModel):
     longitud: float
     radio: float
     is_active: bool = True
+    fecha_creacion: int = 0
 
 class AlarmaCreate(AlarmaBase):
-    pass
+    id: str
 
 # Lo que le respondemos al móvil (incluye el ID generado por la BD)
 class AlarmaResponse(AlarmaBase):
-    id: int
+    id: str
 
     class Config:
         from_attributes = True
