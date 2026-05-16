@@ -29,5 +29,6 @@ class Alarma(Base):
     fecha_creacion = Column(BigInteger, default=lambda: int(time.time() * 1000))
     # Clave foránea: a quién pertenece esta alarma
     usuario_id = Column(Integer, ForeignKey("usuarios.id"))
+    user_email = Column(String, index=True)
     
     propietario = relationship("Usuario", back_populates="alarmas")

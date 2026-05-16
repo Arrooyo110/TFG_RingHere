@@ -35,7 +35,7 @@ private val TextSecondary = Color(0xFF64748B)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RegisterScreen(navController: NavController, isSpanish: Boolean) { // Recibe el idioma
+fun RegisterScreen(navController: NavController, isSpanish: Boolean) {
     var fullName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -58,7 +58,9 @@ fun RegisterScreen(navController: NavController, isSpanish: Boolean) { // Recibe
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 40.dp)
         ) {
             // Logo / Nombre App
             Text(
@@ -137,7 +139,6 @@ fun RegisterScreen(navController: NavController, isSpanish: Boolean) { // Recibe
             // Botón SIGN UP
             Button(
                 onClick = {
-                    // --- LÓGICA DE VALIDACIÓN ---
                     if (fullName.isBlank() || email.isBlank() || password.isBlank()) {
                         val msg = if (isSpanish) "Rellena todos los campos" else "Please fill all fields"
                         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
@@ -168,14 +169,21 @@ fun RegisterScreen(navController: NavController, isSpanish: Boolean) { // Recibe
                         }
                     }
                 },
-                modifier = Modifier.fillMaxWidth().height(58.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(58.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = BrandBlue)
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                 } else {
-                    Text(text = if (isSpanish) "REGISTRARSE" else "SIGN UP", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (isSpanish) "REGISTRARSE" else "SIGN UP",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White // <-- LETRA BLANCA FORZADA
+                    )
                 }
             }
 
@@ -232,9 +240,13 @@ fun CustomRegisterField(
             }
         },
         visualTransformation = if (isPassword && !isPasswordVisible) PasswordVisualTransformation() else VisualTransformation.None,
-        modifier = Modifier.fillMaxWidth().height(56.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp),
         shape = RoundedCornerShape(16.dp),
         colors = TextFieldDefaults.colors(
+            focusedTextColor = Color.Black,   // <-- LETRA SIEMPRE OSCURA
+            unfocusedTextColor = Color.Black, // <-- LETRA SIEMPRE OSCURA
             focusedContainerColor = SoftGrayBg,
             unfocusedContainerColor = SoftGrayBg,
             disabledContainerColor = SoftGrayBg,

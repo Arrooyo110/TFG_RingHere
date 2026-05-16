@@ -82,9 +82,10 @@ fun BottomBarItem(icon: ImageVector, label: String, isSelected: Boolean, onClick
             shape = RoundedCornerShape(24.dp),
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
         ) {
-            Icon(icon, contentDescription = label, modifier = Modifier.size(18.dp))
+            // <-- FORZAMOS ICONO Y TEXTO A BLANCO -->
+            Icon(icon, contentDescription = label, modifier = Modifier.size(18.dp), tint = Color.White)
             Spacer(modifier = Modifier.width(8.dp))
-            Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
         }
     } else {
         // Diseño INACTIVO (Gris, solo icono y texto)

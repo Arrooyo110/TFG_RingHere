@@ -79,6 +79,8 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     // Google Maps para Jetpack Compose
     implementation("com.google.maps.android:maps-compose:4.3.3")
-// Librería oficial de Google Play Services para Mapas
+    // Librería oficial de Google Play Services para Mapas
     implementation("com.google.android.gms:play-services-maps:18.2.0")
+    // Librería oficial de Google para ubicación y Geofencing
+    implementation("com.google.android.gms:play-services-location:21.1.0")
 }

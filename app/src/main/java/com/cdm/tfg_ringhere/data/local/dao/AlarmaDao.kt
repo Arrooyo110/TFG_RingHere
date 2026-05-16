@@ -12,6 +12,7 @@ interface AlarmaDao {
     @Delete
     suspend fun deleteAlarma(alarma: Alarma)
 
-    @Query("SELECT * FROM alarmas ORDER BY fechaCreacion DESC")
-    fun getAllAlarmas(): Flow<List<Alarma>>
+    // --- AHORA FILTRAMOS POR EL EMAIL ---
+    @Query("SELECT * FROM alarmas WHERE userEmail = :email ORDER BY fechaCreacion DESC")
+    fun getAlarmasByUser(email: String): Flow<List<Alarma>>
 }

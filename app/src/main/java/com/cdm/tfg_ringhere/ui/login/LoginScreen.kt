@@ -145,6 +145,8 @@ fun PantallaLogin(viewModel: AlarmaViewModel, navController: NavController) {
                     placeholder = { Text(if (isSpanish) "Ingresa tu correo" else "Enter your email", color = TextGray.copy(alpha = 0.7f)) },
                     leadingIcon = { Icon(Icons.Default.Email, contentDescription = "Email", tint = TextGray) },
                     colors = TextFieldDefaults.colors(
+                        focusedTextColor = Color.Black,   // <-- LETRA SIEMPRE OSCURA
+                        unfocusedTextColor = Color.Black, // <-- LETRA SIEMPRE OSCURA
                         focusedContainerColor = InputGray,
                         unfocusedContainerColor = InputGray,
                         focusedIndicatorColor = Color.Transparent,
@@ -180,6 +182,8 @@ fun PantallaLogin(viewModel: AlarmaViewModel, navController: NavController) {
                     },
                     visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     colors = TextFieldDefaults.colors(
+                        focusedTextColor = Color.Black,   // <-- LETRA SIEMPRE OSCURA
+                        unfocusedTextColor = Color.Black, // <-- LETRA SIEMPRE OSCURA
                         focusedContainerColor = InputGray,
                         unfocusedContainerColor = InputGray,
                         focusedIndicatorColor = Color.Transparent,
@@ -205,7 +209,8 @@ fun PantallaLogin(viewModel: AlarmaViewModel, navController: NavController) {
                 Text(
                     text = if (isSpanish) "Iniciar Sesión" else "Log In",
                     fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White // <-- LETRA BLANCA FORZADA
                 )
             }
 
@@ -255,7 +260,9 @@ fun PantallaLogin(viewModel: AlarmaViewModel, navController: NavController) {
                     shape = CircleShape,
                     color = Color.White,
                     shadowElevation = 2.dp,
-                    modifier = Modifier.size(56.dp).clickable { }
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clickable { }
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text("G", color = Color.Red, fontWeight = FontWeight.Bold, fontSize = 24.sp)
@@ -269,7 +276,9 @@ fun PantallaLogin(viewModel: AlarmaViewModel, navController: NavController) {
                     shape = CircleShape,
                     color = Color.White,
                     shadowElevation = 2.dp,
-                    modifier = Modifier.size(56.dp).clickable { }
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clickable { }
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text("", color = Color.Black, fontSize = 28.sp)
@@ -293,7 +302,7 @@ fun PantallaLogin(viewModel: AlarmaViewModel, navController: NavController) {
                 fontSize = 14.sp,
                 modifier = Modifier
                     .padding(bottom = 24.dp)
-                    .clickable { navController.navigate("register/$isSpanish") } // ENVIAMOS EL IDIOMA AQUÍ
+                    .clickable { navController.navigate("register/$isSpanish") }
             )
         }
     }

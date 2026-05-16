@@ -8,6 +8,7 @@ class AlarmaBase(BaseModel):
     radio: float
     is_active: bool = True
     fecha_creacion: int = 0
+    user_email: str
 
 class AlarmaCreate(AlarmaBase):
     id: str

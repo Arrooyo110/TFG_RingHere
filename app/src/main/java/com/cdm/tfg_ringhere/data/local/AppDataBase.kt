@@ -22,7 +22,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "app_database"
-                ).build()
+                )
+                    .fallbackToDestructiveMigration() // Actualizar tablas si se realiza algun cambio
+                    .build()
                 INSTANCE = instance
                 instance
             }

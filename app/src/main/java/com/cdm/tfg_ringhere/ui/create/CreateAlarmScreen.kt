@@ -83,7 +83,12 @@ fun CreateAlarmScreen(
                 placeholder = { Text("Ej: Trabajo", color = TextGray.copy(alpha = 0.5f)) },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = CardGray, focusedBorderColor = PrimaryBlue)
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.Black,   // <-- LETRA SIEMPRE OSCURA
+                    unfocusedTextColor = Color.Black, // <-- LETRA SIEMPRE OSCURA
+                    unfocusedBorderColor = CardGray,
+                    focusedBorderColor = PrimaryBlue
+                )
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -114,23 +119,23 @@ fun CreateAlarmScreen(
                     )
 
                     // --- AQUÍ ESTÁ LA MAGIA DEL COLOR DINÁMICO ---
-                    // Definimos el color del borde basándonos en el estado 'triggerAlEntrar'
                     val dynamicStrokeColor = if (triggerAlEntrar) PrimaryBlue else AlarmRed
-                    // Definimos el color de relleno con la misma base pero transparente
                     val dynamicFillColor = dynamicStrokeColor.copy(alpha = 0.15f)
 
                     Circle(
                         center = ubicacionSeleccionada,
                         radius = radioValue.toDouble(),
-                        fillColor = dynamicFillColor,   // Relleno dinámico
-                        strokeColor = dynamicStrokeColor, // Borde dinámico
+                        fillColor = dynamicFillColor,
+                        strokeColor = dynamicStrokeColor,
                         strokeWidth = 2f
                     )
                 }
 
                 // Botones flotantes (MyLocation, Layers)
                 Column(
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     MapMiniButton(Icons.Default.MyLocation)
@@ -170,7 +175,6 @@ fun CreateAlarmScreen(
             Text("TIPO DE ACTIVACIÓN", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextGray)
             Spacer(modifier = Modifier.height(12.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                // Al pulsar aquí, triggerAlEntrar pasa a TRUE y el mapa cambia a AZUL
                 ActivationOption(
                     text = "Al entrar",
                     icon = Icons.Default.Login,
@@ -178,7 +182,6 @@ fun CreateAlarmScreen(
                     onClick = { triggerAlEntrar = true },
                     modifier = Modifier.weight(1f)
                 )
-                // Al pulsar aquí, triggerAlEntrar pasa a FALSE y el mapa cambia a ROJO
                 ActivationOption(
                     text = "Al salir",
                     icon = Icons.Default.Logout,
@@ -194,7 +197,6 @@ fun CreateAlarmScreen(
             Button(
                 onClick = {
                     if (nombreAlarma.isNotBlank()) {
-                        // Si hay nombre, guardamos y volvemos
                         viewModel.guardarNuevaAlarma(
                             nombre = nombreAlarma,
                             lat = lat,
@@ -207,7 +209,6 @@ fun CreateAlarmScreen(
                             popUpTo("dashboard") { inclusive = true }
                         }
                     } else {
-                        // --- NUEVO: Alerta no invasiva si está vacío ---
                         android.widget.Toast.makeText(
                             context,
                             "Por favor, ponle un nombre a la alarma",
@@ -215,19 +216,21 @@ fun CreateAlarmScreen(
                         ).show()
                     }
                 },
-                modifier = Modifier.fillMaxWidth().height(56.dp).padding(bottom = 8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .padding(bottom = 8.dp),
                 shape = RoundedCornerShape(28.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
             ) {
-                Icon(Icons.Rounded.NotificationsActive, contentDescription = null)
+                // <-- SE FUERZA EL ICONO Y EL TEXTO A BLANCO -->
+                Icon(Icons.Rounded.NotificationsActive, contentDescription = null, tint = Color.White)
                 Spacer(modifier = Modifier.width(12.dp))
-                Text("Guardar Alarma", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("Guardar Alarma", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
     }
 }
-
-// --- COMPONENTES AUXILIARES (Sin cambios, solo para completar el archivo) ---
 
 @Composable
 fun MapMiniButton(icon: androidx.compose.ui.graphics.vector.ImageVector) {
@@ -246,7 +249,9 @@ fun MapMiniButton(icon: androidx.compose.ui.graphics.vector.ImageVector) {
 @Composable
 fun ActivationOption(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier) {
     Surface(
-        modifier = modifier.height(50.dp).clickable { onClick() },
+        modifier = modifier
+            .height(50.dp)
+            .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         color = if (isSelected) PrimaryBlue else Color.White,
         border = if (isSelected) null else androidx.compose.foundation.BorderStroke(1.dp, CardGray)

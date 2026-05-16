@@ -1,5 +1,9 @@
 package com.cdm.tfg_ringhere.ui.dashboard
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -15,13 +19,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.cdm.tfg_ringhere.model.Alarma
-import com.cdm.tfg_ringhere.viewmodel.AlarmaViewModel
 import com.cdm.tfg_ringhere.ui.components.RingHereBottomBar
+import com.cdm.tfg_ringhere.utils.SessionManager
+import com.cdm.tfg_ringhere.viewmodel.AlarmaViewModel
 
 // --- COLORES ---
 val PrimaryBlue = Color(0xFF2B3A8B)
@@ -36,11 +43,46 @@ val CyanGps = Color(0xFF31E2C2)
 fun DashboardScreen(navController: NavController, viewModel: AlarmaViewModel) {
     val alarmas by viewModel.alarmas.collectAsState(initial = emptyList())
     var isEditing by remember { mutableStateOf(false) }
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        viewModel.cargarAlarmasDelUsuario(context)
+    }
+
+    // --- LÓGICA DE PERMISOS ---
+    val backgroundPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (!isGranted) {
+            android.util.Log.e("PERMISOS", "Ubicación en segundo plano denegada.")
+        }
+    }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val ubicacionAceptada = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        if (ubicacionAceptada && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val permisosAPedir = mutableListOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ).apply {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+        locationPermissionLauncher.launch(permisosAPedir.toTypedArray())
+    }
 
     Scaffold(
         containerColor = LightBackground,
-        topBar = { TopBarDesign() },
+        // ACTUALIZADO: Pasamos el navController a la TopBar
+        topBar = { TopBarDesign(navController = navController, viewModel = viewModel) },
         bottomBar = { RingHereBottomBar(navController = navController, rutaActual = "dashboard") },
         floatingActionButton = {
             FloatingActionButton(
@@ -50,7 +92,7 @@ fun DashboardScreen(navController: NavController, viewModel: AlarmaViewModel) {
                 shape = CircleShape,
                 modifier = Modifier.padding(bottom = 16.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Añadir alarma", modifier = Modifier.size(28.dp))
+                Icon(Icons.Default.Add, contentDescription = "Añadir", modifier = Modifier.size(28.dp), tint = Color.White)
             }
         }
     ) { paddingValues ->
@@ -76,24 +118,26 @@ fun DashboardScreen(navController: NavController, viewModel: AlarmaViewModel) {
                     alarma = alarma,
                     isEditing = isEditing,
                     onDelete = { viewModel.eliminarAlarma(alarma, context) },
-                    // --- AQUÍ ESTÁ LA CONEXIÓN CON EL VIEWMODEL ---
                     onToggle = { nuevoEstado ->
                         viewModel.actualizarEstadoAlarma(alarma, nuevoEstado, context)
                     }
                 )
             }
-
             item { Spacer(modifier = Modifier.height(80.dp)) }
         }
     }
 }
 
-// ... TopBarDesign, HeroCardGPS y SectionHeader se mantienen igual ...
-
 @Composable
-fun TopBarDesign() {
+fun TopBarDesign(navController: NavController, viewModel: AlarmaViewModel) {
+    var showMenu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
     Row(
-        modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 24.dp, vertical = 16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(horizontal = 24.dp, vertical = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -102,7 +146,45 @@ fun TopBarDesign() {
             Spacer(modifier = Modifier.width(16.dp))
             Text("Ring here", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = PrimaryBlue)
         }
-        Icon(Icons.Default.AccountCircle, contentDescription = "Perfil", tint = PrimaryBlue, modifier = Modifier.size(28.dp))
+
+        // --- BOTÓN DE USUARIO CON MENÚ DESPLEGABLE ---
+        Box {
+            IconButton(onClick = { showMenu = true }) {
+                Icon(
+                    imageVector = Icons.Default.AccountCircle,
+                    contentDescription = "Perfil",
+                    tint = PrimaryBlue,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false },
+                modifier = Modifier.background(Color.White)
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Cerrar Sesión", color = Color.Red, fontWeight = FontWeight.Medium) },
+                    leadingIcon = { Icon(Icons.Default.ExitToApp, contentDescription = null, tint = Color.Red) },
+                    onClick = {
+                        showMenu = false
+
+                        // 1. Limpiamos las SharedPreferences (Token y Email)
+                        val sessionManager = SessionManager(context)
+                        sessionManager.clearSession()
+
+                        // 2. ¡PASO CLAVE!: Reseteamos el ViewModel para romper el bucle de navegación
+                        viewModel.logout()
+
+                        // 3. Redirigimos al Login y limpiamos TODO el historial
+                        navController.navigate("login") {
+                            // Al usar 0, borramos absolutamente todas las pantallas del historial
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                )
+            }
+        }
     }
 }
 
@@ -153,16 +235,8 @@ fun SectionHeader(alarmCount: Int, isEditing: Boolean, onEditClick: () -> Unit) 
 }
 
 @Composable
-fun AlarmaItemCard(
-    alarma: Alarma,
-    isEditing: Boolean,
-    onDelete: () -> Unit,
-    onToggle: (Boolean) -> Unit // <-- NUEVO PARÁMETRO
-) {
-    // Usamos el valor real que viene de la base de datos
-    // Si la base de datos cambia, Compose volverá a dibujar esta tarjeta automáticamente
+fun AlarmaItemCard(alarma: Alarma, isEditing: Boolean, onDelete: () -> Unit, onToggle: (Boolean) -> Unit) {
     val isChecked = alarma.isActive
-
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -182,12 +256,12 @@ fun AlarmaItemCard(
 
             if (isEditing) {
                 IconButton(onClick = { onDelete() }) {
-                    Icon(Icons.Default.Delete, contentDescription = "Borrar alarma", tint = Color.Red)
+                    Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Red)
                 }
             } else {
                 Switch(
                     checked = isChecked,
-                    onCheckedChange = { onToggle(it) }, // <-- EJECUTAMOS LA ACCIÓN
+                    onCheckedChange = { onToggle(it) },
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = Color.White,
                         checkedTrackColor = EmeraldGreen,

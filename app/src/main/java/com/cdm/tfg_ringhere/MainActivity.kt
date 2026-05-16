@@ -5,7 +5,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.rememberNavController
@@ -22,6 +24,7 @@ import com.cdm.tfg_ringhere.ui.create.CreateAlarmScreen
 import com.cdm.tfg_ringhere.ui.dashboard.DashboardScreen
 import com.cdm.tfg_ringhere.ui.login.RegisterScreen
 import com.cdm.tfg_ringhere.ui.settings.AjustesScreen
+import com.cdm.tfg_ringhere.utils.SessionManager // <-- IMPORTACIÓN DEL GESTOR DE SESIÓN
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,8 +46,21 @@ class MainActivity : ComponentActivity() {
                     // 1. Creamos el controlador del GPS de nuestra app
                     val navController = rememberNavController()
 
+                    // --- LÓGICA DE SESIÓN PERSISTENTE ---
+                    val context = LocalContext.current
+                    val sessionManager = remember { SessionManager(context) }
+                    val tokenGuardado = sessionManager.fetchAuthToken()
+
+                    // Decidimos la ruta de inicio dinámicamente
+                    val rutaInicial = if (!tokenGuardado.isNullOrEmpty()) {
+                        "dashboard" // Si hay token, pasamos directamente a las alarmas
+                    } else {
+                        "login"     // Si no hay token, pedimos credenciales
+                    }
+
                     // 2. Definimos el mapa de carreteras (NavHost)
-                    NavHost(navController = navController, startDestination = "login") {
+                    // Arrancamos en la variable rutaInicial en vez de forzar "login"
+                    NavHost(navController = navController, startDestination = rutaInicial) {
 
                         // Ruta 1: Pantalla de Login
                         composable("login") {

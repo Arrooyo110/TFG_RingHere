@@ -7,21 +7,18 @@ import java.util.UUID
 
 @Entity(tableName = "alarmas")
 data class Alarma(
-    // --- QUITAMOS el autoGenerate y le ponemos un UUID por defecto ---
     @PrimaryKey
     val id: String = UUID.randomUUID().toString(),
-
     val nombre: String,
     val latitud: Double,
     val longitud: Double,
     val radio: Float,
-
     @SerializedName("is_al_entrar")
     val isAlEntrar: Boolean,
-
     @SerializedName("is_active")
     val isActive: Boolean = true,
-
     @SerializedName("fecha_creacion")
-    val fechaCreacion: Long = System.currentTimeMillis()
+    val fechaCreacion: Long = System.currentTimeMillis(),
+    @SerializedName("user_email")
+    val userEmail: String = ""
 )

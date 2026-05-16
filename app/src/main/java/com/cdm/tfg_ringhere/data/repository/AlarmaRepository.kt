@@ -5,7 +5,10 @@ import com.cdm.tfg_ringhere.model.Alarma
 import kotlinx.coroutines.flow.Flow
 
 class AlarmaRepository(private val alarmaDao: AlarmaDao) {
-    val allAlarmas: Flow<List<Alarma>> = alarmaDao.getAllAlarmas()
+
+    fun getAlarmasByUser(email: String): Flow<List<Alarma>> {
+        return alarmaDao.getAlarmasByUser(email)
+    }
 
     suspend fun insert(alarma: Alarma) {
         alarmaDao.insertAlarma(alarma)
