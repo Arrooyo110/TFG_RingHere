@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, Body
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
+from fastapi.middleware.cors import CORSMiddleware  # <-- Importamos el control de CORS
 from sqlalchemy.orm import Session
 from jose import JWTError, jwt
 from pydantic import BaseModel
@@ -14,6 +15,16 @@ models.Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title="API de GeoAlarmas",
     description="Backend para el TFG de gestión de geovallas"
+)
+
+# --- CONFIGURACIÓN DE CORS ---
+# Permite que tu servidor local (o GitHub Pages en el futuro) se comunique con la API en Render
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  
+    allow_credentials=True,
+    allow_methods=["*"],  
+    allow_headers=["*"],  
 )
 
 # --- ESQUEMAS LOCALES ---
@@ -80,7 +91,6 @@ def register(usuario: schemas.UsuarioCreate, db: Session = Depends(get_db)):
         email=usuario.email, 
         hashed_password=hashed_pwd, 
         full_name=usuario.full_name
-        # Si no pasamos role, SQLAlchemy pondrá el valor por defecto de models.py
     )
     db.add(new_user)
     db.commit()
@@ -96,7 +106,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     if not user or not auth.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Email o contraseña incorrectos")
     
-    # Generar el Token inyectando el email Y EL ROL (Súper útil para el frontend)
+    # Generar el Token inyectando el email Y EL ROL
     access_token = auth.create_access_token(data={"sub": user.email, "role": user.role})
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -173,7 +183,6 @@ def borrar_alarma(alarma_id: str, db: Session = Depends(get_db), current_user: m
 
 @app.get("/usuarios/", response_model=list[schemas.UsuarioResponse], tags=["Admin"])
 def obtener_usuarios(db: Session = Depends(get_db), admin_user: models.Usuario = Depends(get_current_admin)):
-    # Solo accesible por admins gracias a get_current_admin
     usuarios = db.query(models.Usuario).all()
     return usuarios
 
