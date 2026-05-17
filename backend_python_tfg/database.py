@@ -1,17 +1,23 @@
+import os
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.declarative import declarative_base
+from dotenv import load_dotenv
 
-# Usamos SQLite para desarrollo local. ¡Cambiar a PostgreSQL será facilísimo!
-SQLALCHEMY_DATABASE_URL = "sqlite:///./geoalarmas.db"
+# Cargamos las variables ocultas del archivo .env
+load_dotenv()
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
-)
+# Obtenemos la URL de la base de datos (por defecto intentará buscar la tuya de Neon)
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
+
+# Creamos el motor de conexión
+
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
 Base = declarative_base()
 
-# Dependencia para que FastAPI abra y cierre la base de datos en cada petición
+# Dependencia para obtener la sesión de la base de datos
 def get_db():
     db = SessionLocal()
     try:
