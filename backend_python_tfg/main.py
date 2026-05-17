@@ -4,8 +4,9 @@ from sqlalchemy.orm import Session
 from jose import JWTError, jwt
 import models
 import schemas
-import auth # Nuestro archivo de seguridad
+import auth
 from database import engine, get_db
+from pydantic import BaseModel
 
 # Crea el archivo de la base de datos física si no existe
 models.Base.metadata.create_all(bind=engine)
@@ -127,3 +128,50 @@ def borrar_alarma(alarma_id: str, db: Session = Depends(get_db), current_user: m
     db.delete(db_alarma)
     db.commit()
     return {"mensaje": "Alarma borrada correctamente"}
+
+# --- RUTAS DE ADMINISTRACIÓN (Gestión de usuarios) ---
+
+@app.get("/usuarios/", response_model=list[schemas.UsuarioResponse], tags=["Admin"])
+def obtener_usuarios(db: Session = Depends(get_db)):
+    # Trae todos los usuarios
+    # FastAPI filtrará automáticamente las contraseñas cifradas para que no viajen.
+    usuarios = db.query(models.Usuario).all()
+    return usuarios
+
+@app.delete("/usuarios/{usuario_id}", tags=["Admin"])
+def borrar_usuario(usuario_id: int, db: Session = Depends(get_db)): 
+    usuario = db.query(models.Usuario).filter(models.Usuario.id == usuario_id).first()
+    
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    db.delete(usuario)
+    db.commit()
+    return {"mensaje": "Usuario borrado correctamente de la base de datos"}
+
+# --- RUTA PARA CAMBIAR CONTRASEÑA ---
+
+# Pequeño esquema para leer el cuerpo de la petición
+from pydantic import BaseModel
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+@app.put("/usuarios/cambiar-password", tags=["Auth"])
+def cambiar_password(
+    passwords: ChangePasswordRequest, 
+    db: Session = Depends(get_db), 
+    current_user: models.Usuario = Depends(get_current_user) # Protegido con token
+):
+    # 1. Comprobamos que el usuario sabe su contraseña actual
+    if not auth.verify_password(passwords.old_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="La contraseña actual es incorrecta")
+    
+    # 2. Generamos el hash de la nueva contraseña
+    new_hashed_pwd = auth.get_password_hash(passwords.new_password)
+    
+    # 3. Sobrescribimos y guardamos en la base de datos
+    current_user.hashed_password = new_hashed_pwd
+    db.commit()
+    
+    return {"mensaje": "Contraseña actualizada con éxito"}

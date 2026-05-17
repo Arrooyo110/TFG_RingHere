@@ -8,7 +8,9 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 object RetrofitClient {
     //private const val BASE_URL = "http://192.168.1.24:8000/"  //-- Movil android
-    private const val BASE_URL = "http://10.0.2.2:8000/"  //-- Emulator Android
+    //private const val BASE_URL = "http://10.0.2.2:8000/"  //-- Emulator Android
+
+    private const val BASE_URL = "https://ringhere-api.onrender.com/" //-- Servidor en Render
 
 
     // Necesitamos pasarle el contexto para que pueda leer la memoria del móvil
