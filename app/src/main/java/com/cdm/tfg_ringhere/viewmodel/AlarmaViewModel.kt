@@ -14,9 +14,12 @@ import kotlinx.coroutines.launch
 
 class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
 
-    // --- NUEVA LÓGICA DE ALARMAS AISLADAS ---
     private val _alarmas = MutableStateFlow<List<Alarma>>(emptyList())
     val alarmas: StateFlow<List<Alarma>> = _alarmas.asStateFlow()
+
+    // --- NUEVO: Control del indicador visual de arrastrar para actualizar (Pull-to-refresh) ---
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
     private var jobAlarmas: kotlinx.coroutines.Job? = null
 
@@ -35,17 +38,44 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
         return geofenceManager!!
     }
 
-    // --- FUNCIÓN CLAVE PARA CARGAR ALARMAS DEL DUEÑO ---
     fun cargarAlarmasDelUsuario(context: android.content.Context) {
         val sessionManager = com.cdm.tfg_ringhere.utils.SessionManager(context)
         val email = sessionManager.getUserEmail() ?: ""
 
         if (email.isEmpty()) return
 
-        jobAlarmas?.cancel() // Detenemos la escucha por si había otro usuario antes
+        jobAlarmas?.cancel()
         jobAlarmas = viewModelScope.launch {
             repository.getAlarmasByUser(email).collect { misAlarmas ->
                 _alarmas.value = misAlarmas
+            }
+        }
+    }
+
+    // --- NUEVO: Sincronización Remota con FastAPI de Render ---
+    fun sincronizarAlarmas(context: android.content.Context) {
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            try {
+                val sessionManager = com.cdm.tfg_ringhere.utils.SessionManager(context)
+                val email = sessionManager.getUserEmail() ?: ""
+
+                if (email.isNotEmpty()) {
+                    val apiService = com.cdm.tfg_ringhere.data.network.RetrofitClient.getApiService(context)
+                    val response = apiService.obtenerAlarmas()
+
+                    if (response.isSuccessful && response.body() != null) {
+                        val alarmasNube = response.body()!!
+
+                        // Sincronizamos Room eliminando lo viejo de este dueño e insertando la lista limpia
+                        repository.clearAlarmasByUser(email)
+                        repository.insertAlarmas(alarmasNube.filter { it.userEmail == email })
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("API_SYNC", "Error sincronizando datos con Render: ${e.message}")
+            } finally {
+                _isRefreshing.value = false
             }
         }
     }
@@ -68,9 +98,10 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
 
                 val sessionManager = com.cdm.tfg_ringhere.utils.SessionManager(context)
                 sessionManager.saveAuthToken(response.access_token)
-                sessionManager.saveUserEmail(email) // <-- 1. GUARDAMOS EL EMAIL
+                sessionManager.saveUserEmail(email)
 
-                cargarAlarmasDelUsuario(context) // <-- 2. CARGAMOS SUS ALARMAS AL INSTANTE
+                cargarAlarmasDelUsuario(context)
+                sincronizarAlarmas(context) // Bajamos sus alarmas inmediatamente al entrar
 
                 _loginExitoso.value = true
 
@@ -85,7 +116,6 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
         nombre: String, lat: Double, lng: Double, radio: Float, alEntrar: Boolean, context: android.content.Context
     ) {
         viewModelScope.launch {
-            // Recuperamos quién es el dueño de esta alarma
             val sessionManager = com.cdm.tfg_ringhere.utils.SessionManager(context)
             val emailDueño = sessionManager.getUserEmail() ?: ""
 
@@ -96,7 +126,7 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
                 radio = radio,
                 isAlEntrar = alEntrar,
                 isActive = true,
-                userEmail = emailDueño // <-- 3. LE PEGAMOS LA ETIQUETA
+                userEmail = emailDueño
             )
 
             repository.insert(nuevaAlarma)
@@ -151,7 +181,6 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
     fun logout() {
         _loginExitoso.value = false
         _mensajeError.value = null
-        // Opcional: vaciamos la lista de alarmas para que el siguiente usuario no vea nada un segundo
         _alarmas.value = emptyList()
     }
 }

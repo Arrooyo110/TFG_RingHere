@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,7 +31,6 @@ import com.cdm.tfg_ringhere.ui.components.RingHereBottomBar
 import com.cdm.tfg_ringhere.utils.SessionManager
 import com.cdm.tfg_ringhere.viewmodel.AlarmaViewModel
 
-// --- COLORES ---
 val PrimaryBlue = Color(0xFF2B3A8B)
 val LightBackground = Color(0xFFF7F8FC)
 val CardGray = Color(0xFFEAEBEE)
@@ -42,20 +42,22 @@ val CyanGps = Color(0xFF31E2C2)
 @Composable
 fun DashboardScreen(navController: NavController, viewModel: AlarmaViewModel) {
     val alarmas by viewModel.alarmas.collectAsState(initial = emptyList())
+    // Recogemos el estado de refresco reactivo del ViewModel
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
     var isEditing by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
+    // --- REQUISITO 1: Sincronización automática nada más entrar ---
     LaunchedEffect(Unit) {
         viewModel.cargarAlarmasDelUsuario(context)
+        viewModel.sincronizarAlarmas(context)
     }
 
-    // --- LÓGICA DE PERMISOS ---
+    // LÓGICA DE PERMISOS (Sin cambios)
     val backgroundPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        if (!isGranted) {
-            android.util.Log.e("PERMISOS", "Ubicación en segundo plano denegada.")
-        }
+        if (!isGranted) android.util.Log.e("PERMISOS", "Ubicación en segundo plano denegada.")
     }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
@@ -81,7 +83,6 @@ fun DashboardScreen(navController: NavController, viewModel: AlarmaViewModel) {
 
     Scaffold(
         containerColor = LightBackground,
-        // ACTUALIZADO: Pasamos el navController a la TopBar
         topBar = { TopBarDesign(navController = navController, viewModel = viewModel) },
         bottomBar = { RingHereBottomBar(navController = navController, rutaActual = "dashboard") },
         floatingActionButton = {
@@ -96,38 +97,48 @@ fun DashboardScreen(navController: NavController, viewModel: AlarmaViewModel) {
             }
         }
     ) { paddingValues ->
-        LazyColumn(
+
+        // --- REQUISITO 2: Contenedor nativo M3 de deslizar para actualizar ---
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = { viewModel.sincronizarAlarmas(context) },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(horizontal = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            item { Spacer(modifier = Modifier.height(8.dp)) }
-            item { HeroCardGPS() }
-            item {
-                SectionHeader(
-                    alarmCount = alarmas.size,
-                    isEditing = isEditing,
-                    onEditClick = { isEditing = !isEditing }
-                )
-            }
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                item { Spacer(modifier = Modifier.height(8.dp)) }
+                item { HeroCardGPS() }
+                item {
+                    SectionHeader(
+                        alarmCount = alarmas.size,
+                        isEditing = isEditing,
+                        onEditClick = { isEditing = !isEditing }
+                    )
+                }
 
-            items(alarmas) { alarma ->
-                AlarmaItemCard(
-                    alarma = alarma,
-                    isEditing = isEditing,
-                    onDelete = { viewModel.eliminarAlarma(alarma, context) },
-                    onToggle = { nuevoEstado ->
-                        viewModel.actualizarEstadoAlarma(alarma, nuevoEstado, context)
-                    }
-                )
+                items(alarmas) { alarma ->
+                    AlarmaItemCard(
+                        alarma = alarma,
+                        isEditing = isEditing,
+                        onDelete = { viewModel.eliminarAlarma(alarma, context) },
+                        onToggle = { nuevoEstado ->
+                            viewModel.actualizarEstadoAlarma(alarma, nuevoEstado, context)
+                        }
+                    )
+                }
+                item { Spacer(modifier = Modifier.height(80.dp)) }
             }
-            item { Spacer(modifier = Modifier.height(80.dp)) }
         }
     }
 }
 
+// (El resto de funciones auxiliares TopBarDesign, HeroCardGPS, etc. permanecen idénticas)
 @Composable
 fun TopBarDesign(navController: NavController, viewModel: AlarmaViewModel) {
     var showMenu by remember { mutableStateOf(false) }
@@ -147,7 +158,6 @@ fun TopBarDesign(navController: NavController, viewModel: AlarmaViewModel) {
             Text("Ring here", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = PrimaryBlue)
         }
 
-        // --- BOTÓN DE USUARIO CON MENÚ DESPLEGABLE ---
         Box {
             IconButton(onClick = { showMenu = true }) {
                 Icon(
@@ -168,17 +178,10 @@ fun TopBarDesign(navController: NavController, viewModel: AlarmaViewModel) {
                     leadingIcon = { Icon(Icons.Default.ExitToApp, contentDescription = null, tint = Color.Red) },
                     onClick = {
                         showMenu = false
-
-                        // 1. Limpiamos las SharedPreferences (Token y Email)
                         val sessionManager = SessionManager(context)
                         sessionManager.clearSession()
-
-                        // 2. ¡PASO CLAVE!: Reseteamos el ViewModel para romper el bucle de navegación
                         viewModel.logout()
-
-                        // 3. Redirigimos al Login y limpiamos TODO el historial
                         navController.navigate("login") {
-                            // Al usar 0, borramos absolutamente todas las pantallas del historial
                             popUpTo(0) { inclusive = true }
                         }
                     }

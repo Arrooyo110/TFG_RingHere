@@ -36,4 +36,7 @@ interface GeoAlarmasApi {
 
     @PUT("alarmas/{id}")
     suspend fun actualizarAlarma(@Path("id") id: String, @Body alarma: Alarma): Response<Void>
+
+    @GET("alarmas/")
+    suspend fun obtenerAlarmas(): retrofit2.Response<List<Alarma>>
 }
