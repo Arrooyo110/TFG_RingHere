@@ -20,10 +20,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const panelAdmin = document.getElementById("panelAdmin");
     const btnLogout = document.getElementById("btnLogout");
 
-    // 🔍 CORRECCIÓN: Buscamos el email real en localStorage (admite "email" o "user_email")
     const emailSesion = localStorage.getItem("email") || localStorage.getItem("user_email") || "prueba@gmail.com";
     
-    // Asignamos el email real al perfil visual abajo a la izquierda
     txtUserEmail.innerText = emailSesion;
     txtUserRole.innerText = role;
 
@@ -97,19 +95,30 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (marcadorBorrador) marcadorBorrador.setMap(null);
             if (circuloBorrador) circuloBorrador.setMap(null);
 
+            const borradorSvg = {
+                path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z",
+                fillColor: "#06b6d4",
+                fillOpacity: 1,
+                strokeWeight: 1,
+                strokeColor: "#ffffff",
+                rotation: 0,
+                scale: 1.5,
+                anchor: new google.maps.Point(12, 22)
+            };
+
             marcadorBorrador = new google.maps.Marker({
                 position: ubicacionBorrador,
                 map: mapaGlobal,
-                icon: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png",
+                icon: borradorSvg,
                 animation: google.maps.Animation.DROP
             });
 
             const radioInicial = parseInt(sliderRadius.value) || 450;
             circuloBorrador = new google.maps.Circle({
-                strokeColor: '#3b82f6', 
+                strokeColor: '#06b6d4', 
                 strokeOpacity: 0.8,
                 strokeWeight: 2,
-                fillColor: '#60a5fa', 
+                fillColor: '#06b6d4', 
                 fillOpacity: 0.3,
                 map: mapaGlobal,
                 center: ubicacionBorrador,
@@ -151,12 +160,28 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (!isNaN(lat) && !isNaN(lng)) {
                 hayMarcadores = true;
                 const centro = { lat, lng };
-                const colorHex = alarma.is_active ? '#10b981' : '#94a3b8';
+                
+                let colorHex = '#94a3b8'; 
+                if (alarma.is_active) {
+                    colorHex = alarma.is_al_entrar ? '#3b82f6' : '#ef4444'; 
+                }
+
+                const pinSvg = {
+                    path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z",
+                    fillColor: colorHex,
+                    fillOpacity: 1,
+                    strokeWeight: 1,
+                    strokeColor: "#ffffff",
+                    rotation: 0,
+                    scale: 1.5,
+                    anchor: new google.maps.Point(12, 22)
+                };
 
                 const marcador = new google.maps.Marker({
                     position: centro,
                     map: mapaGlobal,
-                    title: alarma.nombre || 'Alarma'
+                    title: alarma.nombre || 'Alarma',
+                    icon: pinSvg
                 });
 
                 const circulo = new google.maps.Circle({
@@ -261,7 +286,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     });
 
-    // Guardar en la Base de Datos (POST) - CONFIGURACIÓN EN PARIDAD CON KOTLIN
     btnSaveAlarm.addEventListener("click", async () => {
         const nombre = inputAlarmName.value.trim();
         if (!nombre) {
@@ -272,16 +296,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         const emailUsuario = localStorage.getItem("email") || localStorage.getItem("user_email") || "prueba@gmail.com";
         const idUsuario = parseInt(localStorage.getItem("user_id") || localStorage.getItem("usuario_id") || localStorage.getItem("id")) || 1;
 
-        // CONSTRUIMOS EL OBJETO REPLICANDO LA DATA CLASS DE KOTLIN
         const dataAlarma = {
-            id: crypto.randomUUID(),  // 🚀 Genera un UUID v4 idéntico al 'UUID.randomUUID()' de Android
+            id: crypto.randomUUID(),  
             nombre: nombre, 
             latitud: ubicacionBorrador.lat,
             longitud: ubicacionBorrador.lng,
             radio: parseInt(sliderRadius.value),
             is_active: true,
-            is_al_entrar: triggerTypeSeleccionado === "entrar", // Mapea los botones del Modal
-            fecha_creacion: Date.now(), // ⏱️ Timestamp en milisegundos igual que 'System.currentTimeMillis()'
+            is_al_entrar: triggerTypeSeleccionado === "entrar", 
+            fecha_creacion: Date.now(), 
             user_email: emailUsuario, 
             usuario_id: idUsuario
         };
@@ -289,7 +312,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         btnSaveAlarm.innerText = "Guardando...";
         
         try {
-            // Enviamos el objeto perfecto a tu API
             await API.post("/alarmas/", dataAlarma);
             
             cerrarModal();
@@ -299,7 +321,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             
             btnSaveAlarm.innerHTML = "<span>🔔</span> Guardar Alarma";
             
-            // Refrescamos la lista para ver el resultado con su switch interactivo
             await cargarAlarmasUsuario();
             
         } catch (error) {
@@ -337,17 +358,26 @@ document.addEventListener("DOMContentLoaded", async () => {
                 return;
             }
 
-            alarmasContainer.innerHTML = alarmas.map(alarma => `
+            alarmasContainer.innerHTML = alarmas.map(alarma => {
+                const isEntrar = alarma.is_al_entrar;
+                const colorActivoClase = isEntrar ? 'peer-checked:bg-blue-500' : 'peer-checked:bg-red-500';
+                const badgeColorClase = !alarma.is_active ? 'bg-slate-400' : (isEntrar ? 'bg-blue-500' : 'bg-red-500');
+                const textoTipo = isEntrar ? 'Al entrar' : 'Al salir';
+
+                return `
                 <div class="bg-white dark:bg-slate-800 p-5 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-sm flex justify-between items-center transition-colors duration-300">
                     <div>
-                        <h4 class="font-bold text-slate-800 dark:text-white">${alarma.nombre || alarma.titulo || 'Alarma sin título'}</h4>
-                        <p class="text-xs text-slate-400 dark:text-slate-400 mt-1">📍 Radio: ${alarma.radio !== undefined ? Math.round(alarma.radio) : '—'}m</p>
+                        <h4 class="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full ${badgeColorClase}"></span>
+                            ${alarma.nombre || alarma.titulo || 'Alarma sin título'}
+                        </h4>
+                        <p class="text-xs text-slate-400 dark:text-slate-400 mt-1 pl-4">📍 Radio: ${alarma.radio !== undefined ? Math.round(alarma.radio) : '—'}m • ${textoTipo}</p>
                     </div>
                     
                     <div class="flex items-center gap-4">
                         <label class="relative inline-flex items-center cursor-pointer" title="${alarma.is_active ? 'Desactivar' : 'Activar'} alarma">
                             <input type="checkbox" class="sr-only peer toggle-alarma" data-id="${alarma.id}" ${alarma.is_active ? 'checked' : ''}>
-                            <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-emerald-500"></div>
+                            <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 ${colorActivoClase}"></div>
                         </label>
                         <div class="w-px h-6 bg-slate-200 dark:bg-slate-700"></div>
                         <button class="btn-delete-alarma p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-all" data-id="${alarma.id}" title="Eliminar alarma">
@@ -355,7 +385,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                         </button>
                     </div>
                 </div>
-            `).join('');
+                `;
+            }).join('');
 
             renderizarMapaYAlarmas(alarmas);
 
@@ -368,7 +399,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         const alarmaEditada = alarmas.find(a => String(a.id) === String(alarmaId));
                         if (alarmaEditada) {
                             alarmaEditada.is_active = nuevoEstado;
-                            renderizarMapaYAlarmas(alarmas); 
+                            await cargarAlarmasUsuario(); 
                         }
                     } catch (error) {
                         alert("Error al sincronizar el estado: " + error.message);
@@ -489,6 +520,5 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
-    // Arranque
     await cargarContenido();
 });
