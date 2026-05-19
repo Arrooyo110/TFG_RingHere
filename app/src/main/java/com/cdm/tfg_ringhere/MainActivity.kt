@@ -1,32 +1,35 @@
 package com.cdm.tfg_ringhere
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.cdm.tfg_ringhere.data.local.AppDatabase
 import com.cdm.tfg_ringhere.data.repository.AlarmaRepository
-import com.cdm.tfg_ringhere.ui.theme.TFG_RingHereTheme
-import com.cdm.tfg_ringhere.viewmodel.AlarmaViewModel
-import com.cdm.tfg_ringhere.viewmodel.AlarmaViewModelFactory
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
 import com.cdm.tfg_ringhere.ui.create.CreateAlarmScreen
 import com.cdm.tfg_ringhere.ui.dashboard.DashboardScreen
 import com.cdm.tfg_ringhere.ui.login.PantallaLogin
 import com.cdm.tfg_ringhere.ui.login.RegisterScreen
 import com.cdm.tfg_ringhere.ui.settings.AjustesScreen
+import com.cdm.tfg_ringhere.ui.theme.TFG_RingHereTheme
+import com.cdm.tfg_ringhere.viewmodel.AlarmaViewModel
+import com.cdm.tfg_ringhere.viewmodel.AlarmaViewModelFactory
 import com.cdm.tfg_ringhere.utils.SessionManager
 
-// --- IMPORTACIONES ADICIONALES PARA WORKMANAGER ---
+// Importaciones para el agente en segundo plano
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
@@ -42,25 +45,59 @@ class MainActivity : ComponentActivity() {
         val repository = AlarmaRepository(database.alarmaDao())
         val factory = AlarmaViewModelFactory(repository)
 
-        // --- REQUISITO 3: Configurar y encolar el Agente en Segundo Plano (WorkManager) ---
+        // Configuración de WorkManager (Agente en segundo plano)
         val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED) // Solo se ejecuta si hay internet
+            .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
 
-        // El mínimo permitido por el sistema operativo Android por seguridad es cada 15 minutos
         val syncWorkRequest = PeriodicWorkRequestBuilder<com.cdm.tfg_ringhere.utils.AlarmaSyncWorker>(
             15, TimeUnit.MINUTES
         ).setConstraints(constraints).build()
 
         WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
             "AlarmaCloudSyncPeriodicWork",
-            ExistingPeriodicWorkPolicy.KEEP, // Si ya existía, no duplica ni pisa el ciclo actual
+            ExistingPeriodicWorkPolicy.KEEP,
             syncWorkRequest
         )
-        // ---------------------------------------------------------------------------------
 
         setContent {
-            TFG_RingHereTheme {
+            val context = LocalContext.current
+
+            // 📡 CONEXIÓN REACTIVA A LOS AJUSTES
+            val prefs = remember { context.getSharedPreferences("RingHereSettings", Context.MODE_PRIVATE) }
+
+            // Estados que Compose vigilará de cerca
+            var temaConfigurado by remember { mutableStateOf(prefs.getString("tema_app", "Predeterminado del sistema")) }
+            var altoContrasteActivo by remember { mutableStateOf(prefs.getBoolean("alto_contraste", false)) }
+
+            // Escuchador en tiempo real: Si cambia SharedPreferences, actualiza los estados de Compose
+            DisposableEffect(prefs) {
+                val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+                    if (key == "tema_app") {
+                        temaConfigurado = prefs.getString("tema_app", "Predeterminado del sistema")
+                    }
+                    if (key == "alto_contraste") {
+                        altoContrasteActivo = prefs.getBoolean("alto_contraste", false)
+                    }
+                }
+                prefs.registerOnSharedPreferenceChangeListener(listener)
+                onDispose {
+                    prefs.unregisterOnSharedPreferenceChangeListener(listener)
+                }
+            }
+
+            // Calculamos matemáticamente si corresponde usar modo oscuro o claro
+            val usarModoOscuro = when (temaConfigurado) {
+                "Oscuro" -> true
+                "Claro" -> false
+                else -> isSystemInDarkTheme() // "Predeterminado del sistema" lee el SO del móvil
+            }
+
+            // 🎨 PASAMOS LOS PARAMETROS DINÁMICOS AL TEMA GLOBAL
+            TFG_RingHereTheme(
+                darkTheme = usarModoOscuro,
+                highContrast = altoContrasteActivo // Pasamos el estado de alto contraste
+            ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -68,15 +105,9 @@ class MainActivity : ComponentActivity() {
                     val viewModel: AlarmaViewModel = viewModel(factory = factory)
                     val navController = rememberNavController()
 
-                    val context = LocalContext.current
                     val sessionManager = remember { SessionManager(context) }
                     val tokenGuardado = sessionManager.fetchAuthToken()
-
-                    val rutaInicial = if (!tokenGuardado.isNullOrEmpty()) {
-                        "dashboard"
-                    } else {
-                        "login"
-                    }
+                    val rutaInicial = if (!tokenGuardado.isNullOrEmpty()) "dashboard" else "login"
 
                     NavHost(navController = navController, startDestination = rutaInicial) {
                         composable("login") {

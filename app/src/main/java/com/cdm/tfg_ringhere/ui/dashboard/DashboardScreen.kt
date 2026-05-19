@@ -1,5 +1,8 @@
 package com.cdm.tfg_ringhere.ui.dashboard
 
+// =====================================================================
+// 1. IMPORTACIONES
+// =====================================================================
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -24,36 +27,39 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.cdm.tfg_ringhere.model.Alarma
 import com.cdm.tfg_ringhere.ui.components.RingHereBottomBar
 import com.cdm.tfg_ringhere.utils.SessionManager
 import com.cdm.tfg_ringhere.viewmodel.AlarmaViewModel
 
-val PrimaryBlue = Color(0xFF2B3A8B)
-val LightBackground = Color(0xFFF7F8FC)
-val CardGray = Color(0xFFEAEBEE)
-val TextGray = Color(0xFF6B7280)
+// =====================================================================
+// 2. COLORES SEMÁNTICOS (BATERÍA, GPS Y RADAR)
+// =====================================================================
 val EmeraldGreen = Color(0xFF057A55)
 val CyanGps = Color(0xFF31E2C2)
 
+// =====================================================================
+// 3. PANTALLA PRINCIPAL (DASHBOARD)
+// =====================================================================
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(navController: NavController, viewModel: AlarmaViewModel) {
     val alarmas by viewModel.alarmas.collectAsState(initial = emptyList())
-    // Recogemos el estado de refresco reactivo del ViewModel
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val radarActivo by viewModel.radarActivo.collectAsState()
+    val alarmaCercana by viewModel.alarmaCercana.collectAsState()
+    val distanciaMetros by viewModel.distanciaCercanaMetros.collectAsState()
+
     var isEditing by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
-    // --- REQUISITO 1: Sincronización automática nada más entrar ---
     LaunchedEffect(Unit) {
         viewModel.cargarAlarmasDelUsuario(context)
         viewModel.sincronizarAlarmas(context)
     }
 
-    // LÓGICA DE PERMISOS (Sin cambios)
+    // Gestión de Permisos GPS
     val backgroundPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -64,8 +70,11 @@ fun DashboardScreen(navController: NavController, viewModel: AlarmaViewModel) {
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         val ubicacionAceptada = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
-        if (ubicacionAceptada && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        if (ubicacionAceptada) {
+            viewModel.iniciarRastreoUbicacion(context)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            }
         }
     }
 
@@ -82,13 +91,13 @@ fun DashboardScreen(navController: NavController, viewModel: AlarmaViewModel) {
     }
 
     Scaffold(
-        containerColor = LightBackground,
+        containerColor = MaterialTheme.colorScheme.background, // 🌟 DINÁMICO
         topBar = { TopBarDesign(navController = navController, viewModel = viewModel) },
         bottomBar = { RingHereBottomBar(navController = navController, rutaActual = "dashboard") },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { navController.navigate("mapa") },
-                containerColor = PrimaryBlue,
+                containerColor = MaterialTheme.colorScheme.primary, // 🌟 DINÁMICO
                 contentColor = Color.White,
                 shape = CircleShape,
                 modifier = Modifier.padding(bottom = 16.dp)
@@ -98,7 +107,6 @@ fun DashboardScreen(navController: NavController, viewModel: AlarmaViewModel) {
         }
     ) { paddingValues ->
 
-        // --- REQUISITO 2: Contenedor nativo M3 de deslizar para actualizar ---
         PullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = { viewModel.sincronizarAlarmas(context) },
@@ -113,7 +121,16 @@ fun DashboardScreen(navController: NavController, viewModel: AlarmaViewModel) {
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 item { Spacer(modifier = Modifier.height(8.dp)) }
-                item { HeroCardGPS() }
+
+                item {
+                    HeroCardGPS(
+                        alarmaCercana = alarmaCercana,
+                        distanciaActual = distanciaMetros,
+                        isRadarActivo = radarActivo,
+                        onToggleRadar = { viewModel.alternarEstadoRadar(context) }
+                    )
+                }
+
                 item {
                     SectionHeader(
                         alarmCount = alarmas.size,
@@ -132,17 +149,133 @@ fun DashboardScreen(navController: NavController, viewModel: AlarmaViewModel) {
                         }
                     )
                 }
+
                 item { Spacer(modifier = Modifier.height(80.dp)) }
             }
         }
     }
 }
 
-// (El resto de funciones auxiliares TopBarDesign, HeroCardGPS, etc. permanecen idénticas)
+// =====================================================================
+// 4. COMPONENTES VISUALES ADAPTATIVOS
+// =====================================================================
+
+@Composable
+fun HeroCardGPS(
+    alarmaCercana: Alarma?,
+    distanciaActual: Float?,
+    isRadarActivo: Boolean,
+    onToggleRadar: () -> Unit
+) {
+    val (valorNumerico, unidad) = if (!isRadarActivo || distanciaActual == null) {
+        Pair("--", "km")
+    } else if (distanciaActual >= 1000f) {
+        Pair(String.format(java.util.Locale.US, "%.1f", distanciaActual / 1000f), "km")
+    } else {
+        Pair(distanciaActual.toInt().toString(), "m")
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary) // 🌟 SE ADAPTA AL AZUL OSCURO/NEGRO
+    ) {
+        Column(modifier = Modifier.padding(24.dp)) {
+            Text(
+                text = "ESTADO ACTUAL",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.sp
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    text = valorNumerico,
+                    color = Color.White,
+                    fontSize = 56.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = " $unidad",
+                    color = Color.White.copy(alpha = 0.9f),
+                    fontSize = 20.sp,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+            }
+
+            Text(
+                text = "Hasta la alarma: ${alarmaCercana?.nombre ?: "Ninguna activa o buscando..."}",
+                color = Color.White.copy(alpha = 0.9f),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (isRadarActivo && distanciaActual != null) CyanGps
+                                else if (isRadarActivo) Color.Yellow
+                                else Color.LightGray
+                            )
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (isRadarActivo && distanciaActual == null) "Buscando GPS..."
+                        else if (isRadarActivo) "Radar Activo"
+                        else "Radar Pausado",
+                        color = if (isRadarActivo && distanciaActual != null) CyanGps
+                        else if (isRadarActivo) Color.Yellow
+                        else Color.White.copy(alpha = 0.6f),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Button(
+                    onClick = onToggleRadar,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White.copy(alpha = 0.2f),
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(14.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    modifier = Modifier.height(38.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isRadarActivo) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(text = if (isRadarActivo) "Pausar" else "Reanudar", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun TopBarDesign(navController: NavController, viewModel: AlarmaViewModel) {
     var showMenu by remember { mutableStateOf(false) }
     val context = LocalContext.current
+
+    val sessionManager = remember { SessionManager(context) }
+    val userEmail = sessionManager.getUserEmail() ?: "usuario@email.com"
+    val userName = sessionManager.getUserName() ?: userEmail.substringBefore("@")
+    val iniciales = userName.take(2).uppercase()
 
     Row(
         modifier = Modifier
@@ -153,64 +286,45 @@ fun TopBarDesign(navController: NavController, viewModel: AlarmaViewModel) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Menu, contentDescription = "Menú", tint = PrimaryBlue)
+            Icon(Icons.Default.Menu, contentDescription = "Menú", tint = MaterialTheme.colorScheme.primary)
             Spacer(modifier = Modifier.width(16.dp))
-            Text("Ring here", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = PrimaryBlue)
+            Text("Ring here", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
         }
 
         Box {
-            IconButton(onClick = { showMenu = true }) {
-                Icon(
-                    imageVector = Icons.Default.AccountCircle,
-                    contentDescription = "Perfil",
-                    tint = PrimaryBlue,
-                    modifier = Modifier.size(28.dp)
-                )
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary)
+                    .clickable { showMenu = true },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = iniciales, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, letterSpacing = 1.sp)
             }
 
             DropdownMenu(
                 expanded = showMenu,
                 onDismissRequest = { showMenu = false },
-                modifier = Modifier.background(Color.White)
+                modifier = Modifier.background(MaterialTheme.colorScheme.surface).width(220.dp)
             ) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    Text(text = "Sesión iniciada como", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                    Text(text = userEmail, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(top = 2.dp))
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), color = MaterialTheme.colorScheme.background, thickness = 1.dp)
+
                 DropdownMenuItem(
                     text = { Text("Cerrar Sesión", color = Color.Red, fontWeight = FontWeight.Medium) },
                     leadingIcon = { Icon(Icons.Default.ExitToApp, contentDescription = null, tint = Color.Red) },
                     onClick = {
                         showMenu = false
-                        val sessionManager = SessionManager(context)
                         sessionManager.clearSession()
                         viewModel.logout()
-                        navController.navigate("login") {
-                            popUpTo(0) { inclusive = true }
-                        }
+                        navController.navigate("login") { popUpTo(0) { inclusive = true } }
                     }
                 )
-            }
-        }
-    }
-}
-
-@Composable
-fun HeroCardGPS() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = PrimaryBlue)
-    ) {
-        Column(modifier = Modifier.padding(24.dp)) {
-            Text("ESTADO ACTUAL", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text("1.2", color = Color.White, fontSize = 56.sp, fontWeight = FontWeight.Bold)
-                Text(" km", color = Color.White.copy(alpha = 0.9f), fontSize = 20.sp, modifier = Modifier.padding(bottom = 12.dp))
-            }
-            Text("Hasta la alarma más cercana", color = Color.White.copy(alpha = 0.9f), fontSize = 14.sp)
-            Spacer(modifier = Modifier.height(24.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(CyanGps))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("GPS Activo", color = CyanGps, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
         }
     }
@@ -224,12 +338,12 @@ fun SectionHeader(alarmCount: Int, isEditing: Boolean, onEditClick: () -> Unit) 
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column {
-            Text("Mis Alarmas", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-            Text("$alarmCount geoalarmas configuradas", fontSize = 14.sp, color = TextGray)
+            Text("Mis Alarmas", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            Text("$alarmCount geoalarmas configuradas", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
         }
         Text(
             text = if (isEditing) "Hecho" else "Editar Lista",
-            color = if (isEditing) Color.Red else PrimaryBlue,
+            color = if (isEditing) Color.Red else MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.Bold,
             fontSize = 14.sp,
             modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onEditClick() }.padding(8.dp)
@@ -243,7 +357,7 @@ fun AlarmaItemCard(alarma: Alarma, isEditing: Boolean, onDelete: () -> Unit, onT
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = CardGray)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant) // 🌟 TARJETA GRIS EN CLARO / CARBON EN OSCURO
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp),
@@ -251,10 +365,10 @@ fun AlarmaItemCard(alarma: Alarma, isEditing: Boolean, onDelete: () -> Unit, onT
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(alarma.nombre, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color.Black)
+                Text(alarma.nombre, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                 Spacer(modifier = Modifier.height(4.dp))
                 val tipo = if (alarma.isAlEntrar) "Al entrar" else "Al salir"
-                Text("Radio: ${alarma.radio.toInt()}m • $tipo", fontSize = 14.sp, color = TextGray)
+                Text("Radio: ${alarma.radio.toInt()}m • $tipo", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
             }
 
             if (isEditing) {

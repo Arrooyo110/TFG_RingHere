@@ -20,16 +20,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 
-private val PrimaryBlue = Color(0xFF2B3A8B)
-private val TextGray = Color(0xFF6B7280)
-
 @Composable
 fun RingHereBottomBar(navController: NavController, rutaActual: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp)
-            .background(Color.White, RoundedCornerShape(32.dp))
+            // 🌟 FONDO DINÁMICO: En modo claro será blanco, en oscuro será un gris carbón/negro según tu Theme.kt
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(32.dp))
             .padding(8.dp)
     ) {
         Row(
@@ -75,20 +73,25 @@ fun RingHereBottomBar(navController: NavController, rutaActual: String) {
 @Composable
 fun BottomBarItem(icon: ImageVector, label: String, isSelected: Boolean, onClick: () -> Unit) {
     if (isSelected) {
-        // Diseño ACTIVO (Azul, tipo botón)
+        // Diseño ACTIVO (Tipo botón destacado)
         Button(
             onClick = onClick,
-            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary, // 🌟 DINÁMICO
+                contentColor = Color.White // El texto/icono en el botón siempre será blanco por contraste
+            ),
             shape = RoundedCornerShape(24.dp),
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
         ) {
-            // <-- FORZAMOS ICONO Y TEXTO A BLANCO -->
-            Icon(icon, contentDescription = label, modifier = Modifier.size(18.dp), tint = Color.White)
+            Icon(icon, contentDescription = label, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
     } else {
-        // Diseño INACTIVO (Gris, solo icono y texto)
+        // Diseño INACTIVO (Solo icono y texto)
+        // 🌟 DINÁMICO: Utilizamos el color de texto del tema con una opacidad del 60% para indicar que no está seleccionado
+        val colorInactivo = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
@@ -96,9 +99,9 @@ fun BottomBarItem(icon: ImageVector, label: String, isSelected: Boolean, onClick
                 .clickable { onClick() }
                 .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
-            Icon(icon, contentDescription = label, tint = TextGray, modifier = Modifier.size(24.dp))
+            Icon(icon, contentDescription = label, tint = colorInactivo, modifier = Modifier.size(24.dp))
             Spacer(modifier = Modifier.height(4.dp))
-            Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextGray)
+            Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = colorInactivo)
         }
     }
 }

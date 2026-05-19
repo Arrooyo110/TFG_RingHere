@@ -1,13 +1,14 @@
 package com.cdm.tfg_ringhere.ui.map
 
+// =====================================================================
+// 1. IMPORTACIONES
+// =====================================================================
 import android.annotation.SuppressLint
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
+import android.content.Context
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -34,15 +35,16 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.maps.android.compose.*
 import kotlinx.coroutines.launch
 
-// --- PALETA DE COLORES ---
-private val PrimaryBlue = Color(0xFF2B3A8B)
+// =====================================================================
+// 2. CONFIGURACIÓN Y MODELOS DE DATOS LOCALES
+// =====================================================================
 private val AccentCyan = Color(0xFF31E2C2)
 private val AlarmRed = Color(0xFFC62828)
 private val InactiveGray = Color(0xFF9E9E9E)
-private val TextGray = Color(0xFF6B7280)
 
 enum class MapOptionData(val title: String, val type: MapType, val icon: ImageVector) {
     Standard("Normal", MapType.NORMAL, Icons.Default.Map),
@@ -50,15 +52,37 @@ enum class MapOptionData(val title: String, val type: MapType, val icon: ImageVe
     Hybrid("Híbrido", MapType.HYBRID, Icons.Default.Layers)
 }
 
+// =====================================================================
+// 3. PANTALLA PRINCIPAL DEL MAPA
+// =====================================================================
 @SuppressLint("MissingPermission")
 @Composable
 fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // Cliente para obtener la ubicación real del GPS
-    val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
+    // --- LÓGICA DEL TEMA (MODO OSCURO REACTIVO) ---
+    val prefs = remember { context.getSharedPreferences("RingHereSettings", Context.MODE_PRIVATE) }
+    var temaConfigurado by remember { mutableStateOf(prefs.getString("tema_app", "Predeterminado del sistema") ?: "Predeterminado del sistema") }
 
+    DisposableEffect(prefs) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { sharedPrefs, key ->
+            if (key == "tema_app") {
+                temaConfigurado = sharedPrefs.getString("tema_app", "Predeterminado del sistema") ?: "Predeterminado del sistema"
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+
+    val esModoOscuro = when (temaConfigurado) {
+        "Oscuro" -> true
+        "Claro" -> false
+        else -> isSystemInDarkTheme()
+    }
+
+    // --- ESTADOS LOCALES ---
+    val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
     var selectedOption by remember { mutableStateOf(MapOptionData.Standard) }
     var marcadorPosicion by remember { mutableStateOf<LatLng?>(null) }
     var layersMenuExpanded by remember { mutableStateOf(false) }
@@ -66,26 +90,35 @@ fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
     val radioAlarma = 450.0
     val alarmas by viewModel.alarmas.collectAsState(initial = emptyList())
 
-    // Posición inicial (Móstoles/Madrid)
+    // Posición inicial por defecto
     val defaultPos = LatLng(40.4167, -3.7037)
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(defaultPos, 12f)
     }
 
+    // --- PROPIEDADES DINÁMICAS DEL MAPA (AQUÍ SUCEDE LA MAGIA DEL JSON OSCURO) ---
+    val mapProperties = remember(esModoOscuro, selectedOption) {
+        MapProperties(
+            mapType = selectedOption.type,
+            isMyLocationEnabled = true,
+            // Solo aplicamos el JSON oscuro si estamos en mapa "Normal" y el modo oscuro está activo
+            mapStyleOptions = if (esModoOscuro && selectedOption.type == MapType.NORMAL) {
+                MapStyleOptions(getDarkMapJsonStyle())
+            } else null
+        )
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
+        // --- COMPONENTE MAPA DE GOOGLE ---
         GoogleMap(
             modifier = Modifier.fillMaxSize(),
             cameraPositionState = cameraPositionState,
-            properties = MapProperties(
-                mapType = selectedOption.type,
-                isMyLocationEnabled = true
-            ),
+            properties = mapProperties,
             uiSettings = MapUiSettings(
                 zoomControlsEnabled = false,
                 mapToolbarEnabled = false,
-                myLocationButtonEnabled = false // Usamos nuestro botón personalizado
+                myLocationButtonEnabled = false
             ),
-            // Ajustamos el padding para que los elementos nativos de Google no se tapen
             contentPadding = PaddingValues(top = 20.dp, bottom = 100.dp),
             onMapLongClick = { latLng ->
                 marcadorPosicion = latLng
@@ -95,10 +128,12 @@ fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
                 layersMenuExpanded = false
             }
         ) {
-            // Dibujar alarmas guardadas
+            // 1. Dibujar alarmas ya creadas
             alarmas.forEach { alarma ->
                 val position = LatLng(alarma.latitud, alarma.longitud)
-                val baseColor = if (!alarma.isActive) InactiveGray else if (alarma.isAlEntrar) PrimaryBlue else AlarmRed
+                // Utilizamos el color primario del tema para integrarnos perfectamente
+                val activeBlue = MaterialTheme.colorScheme.primary
+                val baseColor = if (!alarma.isActive) InactiveGray else if (alarma.isAlEntrar) activeBlue else AlarmRed
 
                 Circle(
                     center = position,
@@ -119,7 +154,7 @@ fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
                 )
             }
 
-            // Marcador temporal para nueva alarma
+            // 2. Dibujar previsualización de nueva alarma
             marcadorPosicion?.let { posicion ->
                 Marker(
                     state = MarkerState(position = posicion),
@@ -136,7 +171,7 @@ fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
             }
         }
 
-        // --- CONTROLES FLOTANTES (Derecha) ---
+        // --- BOTONES FLOTANTES LATERALES ---
         Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -144,33 +179,29 @@ fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Botón Mi Ubicación Real
+            // Botón: Ir a mi ubicación
             FloatingActionButton(
                 onClick = {
                     fusedLocationClient.lastLocation.addOnSuccessListener { location ->
                         location?.let {
                             scope.launch {
                                 val userPos = LatLng(it.latitude, it.longitude)
-                                cameraPositionState.animate(
-                                    CameraUpdateFactory.newCameraPosition(
-                                        CameraPosition.fromLatLngZoom(userPos, 15f)
-                                    )
-                                )
+                                cameraPositionState.animate(CameraUpdateFactory.newCameraPosition(CameraPosition.fromLatLngZoom(userPos, 15f)))
                             }
                         } ?: run {
                             android.widget.Toast.makeText(context, "Buscando señal GPS...", android.widget.Toast.LENGTH_SHORT).show()
                         }
                     }
                 },
-                containerColor = Color.White,
-                contentColor = PrimaryBlue,
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.primary,
                 shape = CircleShape,
                 modifier = Modifier.size(56.dp)
             ) {
                 Icon(Icons.Default.MyLocation, contentDescription = "Centrar")
             }
 
-            // Selector de Capas
+            // Botón: Selector de Capas
             MapLayerFabSelector(
                 isExpanded = layersMenuExpanded,
                 currentOption = selectedOption,
@@ -182,7 +213,7 @@ fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
             )
         }
 
-        // --- PARTE INFERIOR (Confirmar + Navegación) ---
+        // --- BOTÓN INFERIOR DE CONFIRMACIÓN Y NAVEGACIÓN ---
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -198,7 +229,7 @@ fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
                         .padding(bottom = 12.dp)
                         .fillMaxWidth(0.85f)
                         .height(56.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                     shape = RoundedCornerShape(28.dp)
                 ) {
                     Text("Confirmar ubicación", fontWeight = FontWeight.Bold, color = Color.White)
@@ -209,6 +240,9 @@ fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
     }
 }
 
+// =====================================================================
+// 4. SUBCOMPONENTES (MENÚ DE CAPAS)
+// =====================================================================
 @Composable
 fun MapLayerFabSelector(
     isExpanded: Boolean,
@@ -226,50 +260,75 @@ fun MapLayerFabSelector(
                 modifier = Modifier
                     .padding(bottom = 12.dp)
                     .width(160.dp)
-                    .heightIn(max = 200.dp), // <-- 1. Límite máximo de altura para que no se salga de la pantalla
+                    .heightIn(max = 200.dp),
                 shape = RoundedCornerShape(16.dp),
-                color = Color.White,
+                color = MaterialTheme.colorScheme.surface, // 🌟 Adaptable al modo oscuro
                 shadowElevation = 8.dp
             ) {
-                Column(
-                    modifier = Modifier
-                        .padding(8.dp)
-                        .verticalScroll(rememberScrollState()) // <-- 2. Le damos la magia del scroll
-                ) {
+                Column(modifier = Modifier.padding(8.dp).verticalScroll(rememberScrollState())) {
                     Text(
                         "TIPO DE MAPA",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextGray,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                         modifier = Modifier.padding(8.dp)
                     )
                     MapOptionData.values().forEach { option ->
                         val isSelected = option == currentOption
+                        val backgroundColor = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent
+                        val contentColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(if (isSelected) PrimaryBlue.copy(alpha = 0.1f) else Color.Transparent)
+                                .background(backgroundColor)
                                 .clickable { onOptionSelected(option) }
                                 .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(option.icon, null, tint = if (isSelected) PrimaryBlue else InactiveGray, modifier = Modifier.size(20.dp))
+                            Icon(option.icon, null, tint = contentColor, modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text(option.title, color = if (isSelected) PrimaryBlue else Color.Black, fontSize = 14.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium)
+                            Text(option.title, color = contentColor, fontSize = 14.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium)
                         }
                     }
                 }
             }
         }
+
         FloatingActionButton(
             onClick = onToggleExpand,
-            containerColor = Color.White,
-            contentColor = PrimaryBlue,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.primary,
             shape = CircleShape,
             modifier = Modifier.size(56.dp)
         ) {
             Icon(Icons.Default.Layers, contentDescription = "Capas")
         }
     }
+}
+
+// =====================================================================
+// 5. UTILIDADES Y ESTILOS
+// =====================================================================
+/**
+ * Devuelve el String JSON para oscurecer el mapa nativo de Google Maps.
+ * Extraído directamente del panel web del proyecto RingHere.
+ */
+private fun getDarkMapJsonStyle(): String {
+    return """
+        [
+          { "elementType": "geometry", "stylers": [{ "color": "#242f3e" }] },
+          { "elementType": "labels.text.stroke", "stylers": [{ "color": "#242f3e" }] },
+          { "elementType": "labels.text.fill", "stylers": [{ "color": "#746855" }] },
+          { "featureType": "administrative.locality", "elementType": "labels.text.fill", "stylers": [{ "color": "#d59563" }] },
+          { "featureType": "poi", "elementType": "labels.text.fill", "stylers": [{ "color": "#d59563" }] },
+          { "featureType": "poi.park", "elementType": "geometry", "stylers": [{ "color": "#263c3f" }] },
+          { "featureType": "poi.park", "elementType": "labels.text.fill", "stylers": [{ "color": "#6b9a76" }] },
+          { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#38414e" }] },
+          { "featureType": "road", "elementType": "geometry.stroke", "stylers": [{ "color": "#212a37" }] },
+          { "featureType": "road", "elementType": "labels.text.fill", "stylers": [{ "color": "#9ca5b3" }] },
+          { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#17263c" }] }
+        ]
+    """.trimIndent()
 }

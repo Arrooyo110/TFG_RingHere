@@ -25,6 +25,7 @@ class Alarma(Base):
     longitud = Column(Float)
     radio = Column(Float)
     is_active = Column(Boolean, default=True)
+    is_al_entrar = Column(Boolean, default=True)
     
     fecha_creacion = Column(BigInteger, default=lambda: int(time.time() * 1000))
     # Clave foránea: a quién pertenece esta alarma

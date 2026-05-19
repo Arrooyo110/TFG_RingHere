@@ -7,6 +7,7 @@ class AlarmaBase(BaseModel):
     longitud: float
     radio: float
     is_active: bool = True
+    is_al_entrar: bool = True
     fecha_creacion: int = 0
     user_email: str
 

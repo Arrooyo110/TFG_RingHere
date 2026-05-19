@@ -1,6 +1,9 @@
 package com.cdm.tfg_ringhere.ui.create
 
+import android.content.Context
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -13,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -23,14 +27,12 @@ import androidx.navigation.NavController
 import com.cdm.tfg_ringhere.viewmodel.AlarmaViewModel
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.maps.android.compose.*
 
-// --- PALETA DE COLORES ---
-private val PrimaryBlue = Color(0xFF2B3A8B)
-private val AlarmRed = Color(0xFFC62828) // Un rojo claro pero serio para alarmas de salida
-private val LightBackground = Color(0xFFF7F8FC)
-private val CardGray = Color(0xFFEAEBEE)
-private val TextGray = Color(0xFF6B7280)
+// --- COLORES SEMÁNTICOS ESPECÍFICOS ---
+// Mantenemos solo los colores que indican estado (peligro/acción)
+private val AlarmRed = Color(0xFFC62828)
 private val AccentCyan = Color(0xFF31E2C2)
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -43,25 +45,52 @@ fun CreateAlarmScreen(
 ) {
     var nombreAlarma by remember { mutableStateOf("") }
     var radioValue by remember { mutableStateOf(450f) }
-
-    // Este estado controla la lógica y ahora también el color
     var triggerAlEntrar by remember { mutableStateOf(true) }
 
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
 
+    // --- LÓGICA DEL TEMA (MODO OSCURO REACTIVO) ---
+    val prefs = remember { context.getSharedPreferences("RingHereSettings", Context.MODE_PRIVATE) }
+    var temaConfigurado by remember { mutableStateOf(prefs.getString("tema_app", "Predeterminado del sistema") ?: "Predeterminado del sistema") }
+
+    DisposableEffect(prefs) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { sharedPrefs, key ->
+            if (key == "tema_app") {
+                temaConfigurado = sharedPrefs.getString("tema_app", "Predeterminado del sistema") ?: "Predeterminado del sistema"
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+
+    val esModoOscuro = when (temaConfigurado) {
+        "Oscuro" -> true
+        "Claro" -> false
+        else -> isSystemInDarkTheme()
+    }
+
+    // --- CONFIGURACIÓN DEL MAPA ---
     val ubicacionSeleccionada = LatLng(lat, lng)
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(ubicacionSeleccionada, 15f)
     }
 
+    val mapProperties = remember(esModoOscuro) {
+        MapProperties(
+            mapType = MapType.NORMAL,
+            // Si el modo oscuro está activo, inyectamos el JSON
+            mapStyleOptions = if (esModoOscuro) MapStyleOptions(getDarkMapJsonStyle()) else null
+        )
+    }
+
     Scaffold(
-        containerColor = LightBackground,
+        containerColor = MaterialTheme.colorScheme.background, // 🌟 DINÁMICO
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Nueva Alarma", fontWeight = FontWeight.Bold, color = PrimaryBlue) },
+                title = { Text("Nueva Alarma", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Atrás", tint = PrimaryBlue)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Atrás", tint = MaterialTheme.colorScheme.primary)
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
@@ -74,32 +103,33 @@ fun CreateAlarmScreen(
                 .padding(paddingValues)
                 .padding(horizontal = 24.dp)
         ) {
-            // Campo Nombre
-            Text("NOMBRE DE LA ALARMA", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextGray)
+            // --- CAMPO NOMBRE ---
+            Text("NOMBRE DE LA ALARMA", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
                 value = nombreAlarma,
                 onValueChange = { nombreAlarma = it },
-                placeholder = { Text("Ej: Trabajo", color = TextGray.copy(alpha = 0.5f)) },
+                placeholder = { Text("Ej: Trabajo", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)) },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.Black,   // <-- LETRA SIEMPRE OSCURA
-                    unfocusedTextColor = Color.Black, // <-- LETRA SIEMPRE OSCURA
-                    unfocusedBorderColor = CardGray,
-                    focusedBorderColor = PrimaryBlue
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    cursorColor = MaterialTheme.colorScheme.primary
                 )
             )
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Sección Ubicación
-            Text("Ubicación", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = PrimaryBlue)
-            Text("Define el radio de activación", fontSize = 13.sp, color = TextGray)
+            // --- SECCIÓN UBICACIÓN ---
+            Text("Ubicación", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Text("Define el radio de activación", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // --- MAPA PREVIEW INTERACTIVO CON LÓGICA DE COLOR ---
+            // --- MAPA PREVIEW INTERACTIVO ---
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -110,16 +140,15 @@ fun CreateAlarmScreen(
                 GoogleMap(
                     modifier = Modifier.fillMaxSize(),
                     cameraPositionState = cameraPositionState,
-                    uiSettings = MapUiSettings(zoomControlsEnabled = false, myLocationButtonEnabled = false),
-                    properties = MapProperties(mapType = MapType.NORMAL)
+                    uiSettings = MapUiSettings(zoomControlsEnabled = false, myLocationButtonEnabled = false, mapToolbarEnabled = false),
+                    properties = mapProperties // 🌟 DINÁMICO
                 ) {
                     Marker(
                         state = MarkerState(position = ubicacionSeleccionada),
                         title = nombreAlarma.ifEmpty { "Nueva Alarma" }
                     )
 
-                    // --- AQUÍ ESTÁ LA MAGIA DEL COLOR DINÁMICO ---
-                    val dynamicStrokeColor = if (triggerAlEntrar) PrimaryBlue else AlarmRed
+                    val dynamicStrokeColor = if (triggerAlEntrar) MaterialTheme.colorScheme.primary else AlarmRed
                     val dynamicFillColor = dynamicStrokeColor.copy(alpha = 0.15f)
 
                     Circle(
@@ -131,7 +160,6 @@ fun CreateAlarmScreen(
                     )
                 }
 
-                // Botones flotantes (MyLocation, Layers)
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
@@ -145,11 +173,11 @@ fun CreateAlarmScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Slider de Radio
+            // --- SLIDER DE RADIO ---
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.SettingsInputAntenna, contentDescription = null, tint = AccentCyan)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Radio", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PrimaryBlue)
+                Text("Radio", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
                     text = buildAnnotatedString {
@@ -158,7 +186,7 @@ fun CreateAlarmScreen(
                         }
                         append(" METROS")
                     },
-                    color = PrimaryBlue
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
 
@@ -166,13 +194,17 @@ fun CreateAlarmScreen(
                 value = radioValue,
                 onValueChange = { radioValue = it },
                 valueRange = 100f..1000f,
-                colors = SliderDefaults.colors(thumbColor = PrimaryBlue, activeTrackColor = PrimaryBlue)
+                colors = SliderDefaults.colors(
+                    thumbColor = MaterialTheme.colorScheme.primary,
+                    activeTrackColor = MaterialTheme.colorScheme.primary,
+                    inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                )
             )
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Tipo de activación
-            Text("TIPO DE ACTIVACIÓN", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextGray)
+            // --- TIPO DE ACTIVACIÓN ---
+            Text("TIPO DE ACTIVACIÓN", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
             Spacer(modifier = Modifier.height(12.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 ActivationOption(
@@ -193,7 +225,7 @@ fun CreateAlarmScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Botón Guardar
+            // --- BOTÓN GUARDAR ---
             Button(
                 onClick = {
                     if (nombreAlarma.isNotBlank()) {
@@ -209,11 +241,7 @@ fun CreateAlarmScreen(
                             popUpTo("dashboard") { inclusive = true }
                         }
                     } else {
-                        android.widget.Toast.makeText(
-                            context,
-                            "Por favor, ponle un nombre a la alarma",
-                            android.widget.Toast.LENGTH_SHORT
-                        ).show()
+                        android.widget.Toast.makeText(context, "Por favor, ponle un nombre a la alarma", android.widget.Toast.LENGTH_SHORT).show()
                     }
                 },
                 modifier = Modifier
@@ -221,9 +249,8 @@ fun CreateAlarmScreen(
                     .height(56.dp)
                     .padding(bottom = 8.dp),
                 shape = RoundedCornerShape(28.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
-                // <-- SE FUERZA EL ICONO Y EL TEXTO A BLANCO -->
                 Icon(Icons.Rounded.NotificationsActive, contentDescription = null, tint = Color.White)
                 Spacer(modifier = Modifier.width(12.dp))
                 Text("Guardar Alarma", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
@@ -232,16 +259,18 @@ fun CreateAlarmScreen(
     }
 }
 
+// --- SUBCOMPONENTES ---
+
 @Composable
 fun MapMiniButton(icon: androidx.compose.ui.graphics.vector.ImageVector) {
     Surface(
         modifier = Modifier.size(36.dp),
         shape = RoundedCornerShape(8.dp),
-        color = Color.White,
+        color = MaterialTheme.colorScheme.surface,
         shadowElevation = 2.dp
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp), tint = PrimaryBlue)
+            Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
         }
     }
 }
@@ -253,13 +282,31 @@ fun ActivationOption(text: String, icon: androidx.compose.ui.graphics.vector.Ima
             .height(50.dp)
             .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
-        color = if (isSelected) PrimaryBlue else Color.White,
-        border = if (isSelected) null else androidx.compose.foundation.BorderStroke(1.dp, CardGray)
+        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+        border = if (isSelected) null else androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-            Icon(icon, contentDescription = null, tint = if (isSelected) Color.White else PrimaryBlue, modifier = Modifier.size(18.dp))
+            Icon(icon, contentDescription = null, tint = if (isSelected) Color.White else MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text(text, color = if (isSelected) Color.White else PrimaryBlue, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Text(text, color = if (isSelected) Color.White else MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
         }
     }
+}
+
+private fun getDarkMapJsonStyle(): String {
+    return """
+        [
+          { "elementType": "geometry", "stylers": [{ "color": "#242f3e" }] },
+          { "elementType": "labels.text.stroke", "stylers": [{ "color": "#242f3e" }] },
+          { "elementType": "labels.text.fill", "stylers": [{ "color": "#746855" }] },
+          { "featureType": "administrative.locality", "elementType": "labels.text.fill", "stylers": [{ "color": "#d59563" }] },
+          { "featureType": "poi", "elementType": "labels.text.fill", "stylers": [{ "color": "#d59563" }] },
+          { "featureType": "poi.park", "elementType": "geometry", "stylers": [{ "color": "#263c3f" }] },
+          { "featureType": "poi.park", "elementType": "labels.text.fill", "stylers": [{ "color": "#6b9a76" }] },
+          { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#38414e" }] },
+          { "featureType": "road", "elementType": "geometry.stroke", "stylers": [{ "color": "#212a37" }] },
+          { "featureType": "road", "elementType": "labels.text.fill", "stylers": [{ "color": "#9ca5b3" }] },
+          { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#17263c" }] }
+        ]
+    """.trimIndent()
 }

@@ -1,5 +1,8 @@
 package com.cdm.tfg_ringhere.viewmodel
 
+import android.annotation.SuppressLint
+import android.location.Location
+import android.os.Looper
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -7,6 +10,12 @@ import androidx.lifecycle.viewModelScope
 import com.cdm.tfg_ringhere.data.repository.AlarmaRepository
 import com.cdm.tfg_ringhere.model.Alarma
 import com.cdm.tfg_ringhere.utils.GeofenceManager
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,12 +26,25 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
     private val _alarmas = MutableStateFlow<List<Alarma>>(emptyList())
     val alarmas: StateFlow<List<Alarma>> = _alarmas.asStateFlow()
 
-    // --- NUEVO: Control del indicador visual de arrastrar para actualizar (Pull-to-refresh) ---
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
-    private var jobAlarmas: kotlinx.coroutines.Job? = null
+    // --- ESTADOS PARA EL RADAR EN TIEMPO REAL ---
+    private val _radarActivo = MutableStateFlow(true)
+    val radarActivo: StateFlow<Boolean> = _radarActivo.asStateFlow()
 
+    private val _alarmaCercana = MutableStateFlow<Alarma?>(null)
+    val alarmaCercana: StateFlow<Alarma?> = _alarmaCercana.asStateFlow()
+
+    private val _distanciaCercanaMetros = MutableStateFlow<Float?>(null)
+    val distanciaCercanaMetros: StateFlow<Float?> = _distanciaCercanaMetros.asStateFlow()
+
+    private var fusedLocationClient: FusedLocationProviderClient? = null
+    private var locationCallback: LocationCallback? = null
+    private var ubicacionActual: Location? = null
+    // --------------------------------------------
+
+    private var jobAlarmas: kotlinx.coroutines.Job? = null
     private val _loginExitoso = MutableStateFlow(false)
     val loginExitoso = _loginExitoso.asStateFlow()
 
@@ -38,6 +60,87 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
         return geofenceManager!!
     }
 
+    // --- NUEVO: Motor de Rastreo GPS ---
+    @SuppressLint("MissingPermission") // Los permisos ya se piden en la UI
+    fun iniciarRastreoUbicacion(context: android.content.Context) {
+        if (fusedLocationClient == null) {
+            fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+        }
+
+        // Configuramos la petición: Alta precisión, actualiza cada 5 segundos
+        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000)
+            .setMinUpdateDistanceMeters(5f) // Solo actualiza si el usuario se mueve 5 metros
+            .build()
+
+        locationCallback = object : LocationCallback() {
+            override fun onLocationResult(p0: LocationResult) {
+                p0.lastLocation?.let { loc ->
+                    ubicacionActual = loc
+                    calcularAlarmaMasCercana()
+                }
+            }
+        }
+
+        fusedLocationClient?.requestLocationUpdates(
+            locationRequest,
+            locationCallback!!,
+            Looper.getMainLooper()
+        )
+    }
+
+    fun detenerRastreoUbicacion() {
+        locationCallback?.let {
+            fusedLocationClient?.removeLocationUpdates(it)
+        }
+    }
+
+    // --- NUEVO: Matemática de Distancias ---
+    private fun calcularAlarmaMasCercana() {
+        val miPosicion = ubicacionActual
+        val listaActivas = _alarmas.value.filter { it.isActive }
+
+        // Si el radar está pausado, no hay GPS, o no hay alarmas activas, reseteamos la tarjeta
+        if (!_radarActivo.value || miPosicion == null || listaActivas.isEmpty()) {
+            _alarmaCercana.value = null
+            _distanciaCercanaMetros.value = null
+            return
+        }
+
+        var alarmaMasCerca: Alarma? = null
+        var distanciaMinima = Float.MAX_VALUE
+
+        for (alarma in listaActivas) {
+            val locationAlarma = Location("").apply {
+                latitude = alarma.latitud
+                longitude = alarma.longitud
+            }
+            // Math magic nativa de Android: Distancia en línea recta en metros
+            val distancia = miPosicion.distanceTo(locationAlarma)
+
+            if (distancia < distanciaMinima) {
+                distanciaMinima = distancia
+                alarmaMasCerca = alarma
+            }
+        }
+
+        _alarmaCercana.value = alarmaMasCerca
+        _distanciaCercanaMetros.value = distanciaMinima
+    }
+    // --------------------------------------------
+
+    fun alternarEstadoRadar(context: android.content.Context) {
+        _radarActivo.value = !_radarActivo.value
+
+        if (_radarActivo.value) {
+            iniciarRastreoUbicacion(context)
+        } else {
+            detenerRastreoUbicacion()
+            _alarmaCercana.value = null
+            _distanciaCercanaMetros.value = null
+        }
+        calcularAlarmaMasCercana()
+    }
+
     fun cargarAlarmasDelUsuario(context: android.content.Context) {
         val sessionManager = com.cdm.tfg_ringhere.utils.SessionManager(context)
         val email = sessionManager.getUserEmail() ?: ""
@@ -48,11 +151,11 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
         jobAlarmas = viewModelScope.launch {
             repository.getAlarmasByUser(email).collect { misAlarmas ->
                 _alarmas.value = misAlarmas
+                calcularAlarmaMasCercana() // Recalcula si borramos/añadimos una alarma
             }
         }
     }
 
-    // --- NUEVO: Sincronización Remota con FastAPI de Render ---
     fun sincronizarAlarmas(context: android.content.Context) {
         viewModelScope.launch {
             _isRefreshing.value = true
@@ -66,8 +169,6 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
 
                     if (response.isSuccessful && response.body() != null) {
                         val alarmasNube = response.body()!!
-
-                        // Sincronizamos Room eliminando lo viejo de este dueño e insertando la lista limpia
                         repository.clearAlarmasByUser(email)
                         repository.insertAlarmas(alarmasNube.filter { it.userEmail == email })
                     }
@@ -80,19 +181,13 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
         }
     }
 
-    fun insert(alarma: Alarma) = viewModelScope.launch {
-        repository.insert(alarma)
-    }
-
-    fun delete(alarma: Alarma) = viewModelScope.launch {
-        repository.delete(alarma)
-    }
+    fun insert(alarma: Alarma) = viewModelScope.launch { repository.insert(alarma) }
+    fun delete(alarma: Alarma) = viewModelScope.launch { repository.delete(alarma) }
 
     fun loginUsuario(email: String, contrasena: String, context: android.content.Context) {
         viewModelScope.launch {
             try {
                 _mensajeError.value = null
-
                 val apiService = com.cdm.tfg_ringhere.data.network.RetrofitClient.getApiService(context)
                 val response = apiService.login(email, contrasena)
 
@@ -101,13 +196,12 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
                 sessionManager.saveUserEmail(email)
 
                 cargarAlarmasDelUsuario(context)
-                sincronizarAlarmas(context) // Bajamos sus alarmas inmediatamente al entrar
-
+                sincronizarAlarmas(context)
                 _loginExitoso.value = true
 
             } catch (e: Exception) {
                 Log.e("API_TEST", "Error de login: ${e.message}")
-                _mensajeError.value = "Correo o contraseña incorrectos. Inténtalo de nuevo."
+                _mensajeError.value = "Correo o contraseña incorrectos."
             }
         }
     }
@@ -120,13 +214,8 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
             val emailDueño = sessionManager.getUserEmail() ?: ""
 
             val nuevaAlarma = Alarma(
-                nombre = nombre,
-                latitud = lat,
-                longitud = lng,
-                radio = radio,
-                isAlEntrar = alEntrar,
-                isActive = true,
-                userEmail = emailDueño
+                nombre = nombre, latitud = lat, longitud = lng, radio = radio,
+                isAlEntrar = alEntrar, isActive = true, userEmail = emailDueño
             )
 
             repository.insert(nuevaAlarma)
@@ -134,13 +223,9 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
 
             try {
                 val apiService = com.cdm.tfg_ringhere.data.network.RetrofitClient.getApiService(context)
-                val response = apiService.crearAlarma(nuevaAlarma)
-
-                if (response.isSuccessful) {
-                    Log.d("API_SYNC", "Alarma sincronizada en la nube con ID: ${nuevaAlarma.id}")
-                }
+                apiService.crearAlarma(nuevaAlarma)
             } catch (e: Exception) {
-                Log.e("API_SYNC", "Sin internet. Guardada solo localmente: ${e.message}")
+                Log.e("API_SYNC", "Sin internet: ${e.message}")
             }
         }
     }
@@ -153,7 +238,7 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
                 val apiService = com.cdm.tfg_ringhere.data.network.RetrofitClient.getApiService(context)
                 apiService.borrarAlarma(alarma.id)
             } catch (e: Exception) {
-                Log.e("API_SYNC", "Error borrando en servidor: ${e.message}")
+                Log.e("API_SYNC", "Error borrando servidor: ${e.message}")
             }
         }
     }
@@ -173,7 +258,7 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
                 val apiService = com.cdm.tfg_ringhere.data.network.RetrofitClient.getApiService(context)
                 apiService.actualizarAlarma(alarma.id, alarmaActualizada)
             } catch (e: Exception) {
-                Log.e("API_SYNC", "Error actualizando en servidor: ${e.message}")
+                Log.e("API_SYNC", "Error actualizando servidor: ${e.message}")
             }
         }
     }
@@ -182,6 +267,7 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
         _loginExitoso.value = false
         _mensajeError.value = null
         _alarmas.value = emptyList()
+        detenerRastreoUbicacion()
     }
 }
 
