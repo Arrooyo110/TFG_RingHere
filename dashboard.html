@@ -16,39 +16,53 @@
     <aside class="w-64 bg-white dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800 flex flex-col justify-between p-6 shrink-0 transition-colors duration-300">
         <div>
             <div class="flex items-center gap-3 mb-10 px-2">
-                <div class="w-10 h-10 bg-blue-800 text-white rounded-xl flex items-center justify-center font-bold text-xl shadow-md shadow-blue-200 dark:shadow-none">
-                    R
-                </div>
+                <img src="assets/img/Logo_ringhere.png" alt="RingHere Logo" class="w-12 h-12 object-contain shadow-sm rounded-xl">
                 <div>
-                    <h2 class="font-bold text-slate-900 dark:text-white leading-none">RingHere</h2>
-                    <span class="text-[10px] text-slate-400 dark:text-slate-500 font-medium tracking-wider uppercase">Geofencing</span>
+                    <h2 class="font-bold text-slate-900 dark:text-white leading-none text-xl tracking-tight">RingHere</h2>
+                    <span id="txtLogoSubtitle" class="text-[10px] text-blue-600 dark:text-blue-400 font-bold tracking-widest uppercase">Dashboard</span>
                 </div>
             </div>
 
             <nav class="space-y-2">
                 <button id="btnNavDashboard" class="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-2xl bg-blue-800 text-white shadow-md shadow-blue-100 dark:shadow-none transition-all">
-                    <span>📊</span> Dashboard
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+                    Dashboard
                 </button>
+                
                 <button id="btnNavAdmin" class="w-full hidden flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-2xl text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-all">
-                    <span>👥</span> User Management
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    User Management
                 </button>
             </nav>
         </div>
 
-        <div class="pt-4 border-t border-slate-100 dark:border-slate-800">
-            <div class="flex items-center justify-between px-2">
+        <div class="pt-6 border-t border-slate-100 dark:border-slate-800 mt-4">
+            <div class="flex items-center gap-3 px-2 mb-5">
+                <div class="w-10 h-10 rounded-full bg-blue-100 dark:bg-slate-800 flex items-center justify-center text-blue-700 dark:text-blue-400 shadow-inner shrink-0">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                </div>
                 <div class="flex-1 overflow-hidden">
-                    <p id="txtUserEmail" class="text-xs font-bold text-slate-900 dark:text-white truncate">cargando...</p>
-                    <p id="txtUserRole" class="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Role</p>
+                    <p id="txtUserEmail" class="text-sm font-bold text-slate-900 dark:text-white truncate">cargando...</p>
+                    <p id="txtUserRole" class="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mt-0.5">Role</p>
                 </div>
-                <div class="flex items-center gap-1">
-                    <button id="btnToggleTheme" class="p-2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-xl hover:bg-blue-50 dark:hover:bg-slate-800 transition-all" title="Cambiar tema">
-                        <span id="themeIcon">🌙</span>
-                    </button>
-                    <button id="btnLogout" class="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-all" title="Cerrar sesión">
-                        <span>🚪</span>
-                    </button>
-                </div>
+            </div>
+
+            <div class="flex items-center justify-between gap-2">
+                <button id="btnToggleLang" class="flex-1 flex items-center justify-center py-2.5 bg-slate-50 dark:bg-slate-800/50 hover:bg-blue-50 dark:hover:bg-slate-800 text-slate-500 hover:text-blue-700 dark:text-slate-400 dark:hover:text-blue-400 rounded-xl transition-all border border-slate-200 dark:border-slate-700 shadow-sm group" title="Cambiar idioma">
+                    <span id="langIcon" class="font-bold text-xs tracking-widest group-hover:scale-110 transition-transform">ES</span>
+                </button>
+                
+                <button id="btnToggleTheme" class="flex-1 flex items-center justify-center py-2.5 bg-slate-50 dark:bg-slate-800/50 hover:bg-blue-50 dark:hover:bg-slate-800 text-slate-500 hover:text-blue-700 dark:text-slate-400 dark:hover:text-blue-400 rounded-xl transition-all border border-slate-200 dark:border-slate-700 shadow-sm group" title="Cambiar tema">
+                    <span id="themeIcon" class="group-hover:scale-110 transition-transform flex items-center justify-center">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                    </span>
+                </button>
+                
+                <button id="btnLogout" class="flex-1 flex items-center justify-center py-2.5 bg-slate-50 dark:bg-slate-800/50 hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400 rounded-xl transition-all border border-slate-200 dark:border-slate-700 shadow-sm group" title="Cerrar sesión">
+                    <span class="group-hover:scale-110 transition-transform flex items-center justify-center">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                    </span>
+                </button>
             </div>
         </div>
     </aside>
@@ -110,9 +124,11 @@
                         <h1 class="text-2xl font-bold text-slate-900 dark:text-white">My Alarms</h1>
                         <p class="text-sm text-slate-400 mt-1">Manage your active monitoring zones.</p>
                     </div>
-                    <button id="btnCreateNewAlarmHeader" class="px-5 py-2.5 bg-blue-800 hover:bg-blue-900 text-white font-semibold text-sm rounded-2xl shadow-md shadow-blue-100 dark:shadow-none active:scale-[0.98] transition-all">
-                        + CREATE NEW ALARM
-                    </button>
+                    
+                    <div class="flex items-center gap-2 px-4 py-2.5 bg-blue-50 dark:bg-slate-800/80 text-blue-700 dark:text-blue-400 rounded-2xl text-sm font-medium border border-blue-100 dark:border-slate-700 shadow-sm select-none">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg>
+                        <span id="txtMapHint">Haz clic en el mapa para crear una alarma</span>
+                    </div>
                 </div>
 
                 <div id="alarmasContainer" class="space-y-4">

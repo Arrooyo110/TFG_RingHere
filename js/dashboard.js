@@ -2,6 +2,68 @@
 
 document.addEventListener("DOMContentLoaded", async () => {
     // ==========================================
+    // 0. INTERNACIONALIZACIÓN 
+    // ==========================================
+    const traducciones = {
+        es: {
+            dashboard: "Panel de Control",
+            userManagement: "Gestión de Usuarios",
+            myAlarms: "Mis Alarmas",
+            subtitle: "Gestiona tus zonas de monitorización activa.",
+            syncing: "↻ Sincronizando...",
+            synced: "● Sincronizado",
+            error: "⚠ Error de conexión",
+            mapHint: "Haz clic en el mapa para crear una alarma"
+        },
+        en: {
+            dashboard: "Dashboard",
+            userManagement: "User Management",
+            myAlarms: "My Alarms",
+            subtitle: "Manage your active monitoring zones.",
+            syncing: "↻ Syncing...",
+            synced: "● Synced",
+            error: "⚠ Connection error",
+            mapHint: "Click on the map to create an alarm"
+        }
+    };
+
+    let idiomaActual = localStorage.getItem("lang") || "es";
+
+    function aplicarTraduccion() {
+        const t = traducciones[idiomaActual];
+        
+        document.getElementById("btnNavDashboard").childNodes[2].textContent = " " + t.dashboard;
+        document.getElementById("btnNavAdmin").childNodes[2].textContent = " " + t.userManagement;
+        
+        const h1 = document.querySelector("h1");
+        if(h1) h1.textContent = t.myAlarms;
+        
+        const pSubtitle = document.querySelector("p.text-sm.text-slate-400");
+        if(pSubtitle) pSubtitle.textContent = t.subtitle;
+
+        const txtLogoSubtitle = document.getElementById("txtLogoSubtitle");
+        if(txtLogoSubtitle) txtLogoSubtitle.textContent = t.dashboard;
+
+        const txtMapHint = document.getElementById("txtMapHint");
+        if(txtMapHint) txtMapHint.textContent = t.mapHint;
+
+        document.getElementById("langIcon").textContent = idiomaActual === "es" ? "ES" : "EN";
+        localStorage.setItem("lang", idiomaActual);
+        
+        const badge = document.getElementById("txtMapStatus");
+        if(badge && badge.innerText.includes("Sincron")) badge.innerText = t.syncing;
+        else if(badge && badge.innerText.includes("incronizado")) badge.innerText = t.synced;
+        else if(badge && badge.innerText.includes("Syncing")) badge.innerText = t.syncing;
+        else if(badge && badge.innerText.includes("Synced")) badge.innerText = t.synced;
+    }
+
+    const btnToggleLang = document.getElementById("btnToggleLang");
+    btnToggleLang.addEventListener("click", () => {
+        idiomaActual = idiomaActual === "es" ? "en" : "es";
+        aplicarTraduccion();
+    });
+
+    // ==========================================
     // 1. SEGURIDAD Y CONFIGURACIÓN INICIAL
     // ==========================================
     const token = localStorage.getItem("token");
@@ -20,7 +82,23 @@ document.addEventListener("DOMContentLoaded", async () => {
     const panelAdmin = document.getElementById("panelAdmin");
     const btnLogout = document.getElementById("btnLogout");
 
-    const emailSesion = localStorage.getItem("email") || localStorage.getItem("user_email") || "prueba@gmail.com";
+    // 🚀 EXTRACCIÓN AVANZADA: Decodificamos el JWT para extraer el email real (sub) de forma segura
+    let emailSesion = localStorage.getItem("email") || localStorage.getItem("user_email");
+    
+    if (!emailSesion && token) {
+        try {
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const payload = JSON.parse(window.atob(base64));
+            emailSesion = payload.sub || payload.email || payload.username;
+        } catch (e) {
+            console.error("No se pudo extraer el email del token de seguridad", e);
+        }
+    }
+    
+    if (!emailSesion) {
+        emailSesion = "usuario@ringhere.com";
+    }
     
     txtUserEmail.innerText = emailSesion;
     txtUserRole.innerText = role;
@@ -35,6 +113,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     const btnToggleTheme = document.getElementById("btnToggleTheme");
     const themeIcon = document.getElementById("themeIcon");
     const htmlElement = document.documentElement;
+
+    const svgMoon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>`;
+    const svgSun = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>`;
 
     const darkMapStyle = [
         { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
@@ -52,7 +133,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (localStorage.getItem("theme") === "dark") {
         htmlElement.classList.add("dark");
-        themeIcon.innerText = "☀️";
+        themeIcon.innerHTML = svgSun;
+    } else {
+        themeIcon.innerHTML = svgMoon;
     }
 
     btnToggleTheme.addEventListener("click", () => {
@@ -60,12 +143,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (isDark) {
             htmlElement.classList.remove("dark");
             localStorage.setItem("theme", "light");
-            themeIcon.innerText = "🌙";
+            themeIcon.innerHTML = svgMoon;
             if (mapaGlobal) mapaGlobal.setOptions({ styles: [] }); 
         } else {
             htmlElement.classList.add("dark");
             localStorage.setItem("theme", "dark");
-            themeIcon.innerText = "☀️";
+            themeIcon.innerHTML = svgSun;
             if (mapaGlobal) mapaGlobal.setOptions({ styles: darkMapStyle }); 
         }
     });
@@ -239,15 +322,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const btnsTriggerType = document.querySelectorAll(".btn-trigger-type");
     const btnSaveAlarm = document.getElementById("btnSaveAlarm");
     const inputAlarmName = document.getElementById("inputAlarmName");
-    const btnCreateNewAlarmHeader = document.getElementById("btnCreateNewAlarmHeader");
 
     let triggerTypeSeleccionado = "entrar";
-
-    if (btnCreateNewAlarmHeader) {
-        btnCreateNewAlarmHeader.addEventListener("click", () => {
-            alert("Haz clic en cualquier parte del mapa para colocar la chincheta de tu nueva alarma.");
-        });
-    }
 
     btnConfirmLocation.addEventListener("click", () => {
         modalNewAlarm.classList.remove("hidden");
@@ -293,7 +369,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             return;
         }
 
-        const emailUsuario = localStorage.getItem("email") || localStorage.getItem("user_email") || "prueba@gmail.com";
         const idUsuario = parseInt(localStorage.getItem("user_id") || localStorage.getItem("usuario_id") || localStorage.getItem("id")) || 1;
 
         const dataAlarma = {
@@ -305,7 +380,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             is_active: true,
             is_al_entrar: triggerTypeSeleccionado === "entrar", 
             fecha_creacion: Date.now(), 
-            user_email: emailUsuario, 
+            user_email: emailSesion, // Usamos la variable unificada y segura
             usuario_id: idUsuario
         };
 
@@ -320,7 +395,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             btnConfirmLocation.classList.add("hidden");
             
             btnSaveAlarm.innerHTML = "<span>🔔</span> Guardar Alarma";
-            
             await cargarAlarmasUsuario();
             
         } catch (error) {
@@ -335,6 +409,23 @@ document.addEventListener("DOMContentLoaded", async () => {
     // ==========================================
     // 5. DATOS Y CRUD (LECTURA, EDICIÓN Y BORRADO)
     // ==========================================
+    function setSyncStatus(state) {
+        const badge = document.getElementById("txtMapStatus");
+        if (!badge) return;
+        const t = traducciones[idiomaActual];
+
+        if (state === 'syncing') {
+            badge.className = "text-xs px-2.5 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400 font-semibold rounded-full animate-pulse";
+            badge.innerText = t.syncing;
+        } else if (state === 'live') {
+            badge.className = "text-xs px-2.5 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 font-semibold rounded-full transition-all";
+            badge.innerText = t.synced;
+        } else if (state === 'error') {
+            badge.className = "text-xs px-2.5 py-1 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400 font-semibold rounded-full transition-all";
+            badge.innerText = t.error;
+        }
+    }
+
     async function cargarContenido() {
         try {
             if (role === "admin" && !panelAdmin.classList.contains("hidden")) {
@@ -349,12 +440,15 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     async function cargarAlarmasUsuario() {
         const alarmasContainer = document.getElementById("alarmasContainer");
+        setSyncStatus('syncing'); 
+
         try {
             const alarmas = await API.get("/alarmas/");
 
             if (alarmas.length === 0) {
                 alarmasContainer.innerHTML = `<p class="text-sm text-slate-400">No tienes ninguna alarma creada todavía. ¡Haz clic en el mapa para empezar!</p>`;
                 renderizarMapaYAlarmas([]); 
+                setSyncStatus('live'); 
                 return;
             }
 
@@ -368,7 +462,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 <div class="bg-white dark:bg-slate-800 p-5 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-sm flex justify-between items-center transition-colors duration-300">
                     <div>
                         <h4 class="font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                            <span class="w-2.5 h-2.5 rounded-full ${badgeColorClase}"></span>
+                            <span id="badge-alarma-${alarma.id}" class="w-2.5 h-2.5 rounded-full transition-colors ${badgeColorClase}"></span>
                             ${alarma.nombre || alarma.titulo || 'Alarma sin título'}
                         </h4>
                         <p class="text-xs text-slate-400 dark:text-slate-400 mt-1 pl-4">📍 Radio: ${alarma.radio !== undefined ? Math.round(alarma.radio) : '—'}m • ${textoTipo}</p>
@@ -389,19 +483,28 @@ document.addEventListener("DOMContentLoaded", async () => {
             }).join('');
 
             renderizarMapaYAlarmas(alarmas);
+            setSyncStatus('live'); 
 
             document.querySelectorAll(".toggle-alarma").forEach(toggle => {
                 toggle.addEventListener("change", async (e) => {
                     const alarmaId = e.target.getAttribute("data-id");
                     const nuevoEstado = e.target.checked; 
+                    setSyncStatus('syncing'); 
                     try {
                         await API.put(`/alarmas/${alarmaId}`, { is_active: nuevoEstado });
                         const alarmaEditada = alarmas.find(a => String(a.id) === String(alarmaId));
                         if (alarmaEditada) {
                             alarmaEditada.is_active = nuevoEstado;
-                            await cargarAlarmasUsuario(); 
+                            const badge = document.getElementById(`badge-alarma-${alarmaId}`);
+                            if (badge) {
+                                const isEntrar = alarmaEditada.is_al_entrar;
+                                badge.className = `w-2.5 h-2.5 rounded-full transition-colors ${!nuevoEstado ? 'bg-slate-400' : (isEntrar ? 'bg-blue-500' : 'bg-red-500')}`;
+                            }
+                            renderizarMapaYAlarmas(alarmas);
+                            setSyncStatus('live'); 
                         }
                     } catch (error) {
+                        setSyncStatus('error'); 
                         alert("Error al sincronizar el estado: " + error.message);
                         e.target.checked = !nuevoEstado; 
                     }
@@ -412,10 +515,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                 btn.addEventListener("click", async (e) => {
                     const alarmaId = e.currentTarget.getAttribute("data-id");
                     if (confirm("¿Estás seguro de que deseas eliminar esta alarma? Desaparecerá permanentemente de tu cuenta.")) {
+                        setSyncStatus('syncing'); 
                         try {
                             await API.delete(`/alarmas/${alarmaId}`);
-                            await cargarAlarmasUsuario();
+                            await cargarAlarmasUsuario(); 
                         } catch (error) {
+                            setSyncStatus('error'); 
                             alert("Error al eliminar la alarma: " + error.message);
                         }
                     }
@@ -423,6 +528,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             });
 
         } catch (error) {
+            setSyncStatus('error'); 
             alarmasContainer.innerHTML = `<p class="text-sm text-red-500"> Error de red: ${error.message}</p>`;
         }
     }
@@ -434,7 +540,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         try {
             const usuarios = await API.get("/usuarios/");
-
             statTotalUsers.innerText = usuarios.length;
             statTotalAdmins.innerText = usuarios.filter(u => u.role === "admin").length;
 
@@ -520,5 +625,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
+    aplicarTraduccion();
     await cargarContenido();
 });
