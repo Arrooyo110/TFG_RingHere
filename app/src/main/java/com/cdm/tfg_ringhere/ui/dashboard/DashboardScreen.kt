@@ -7,6 +7,7 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -24,10 +25,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.cdm.tfg_ringhere.R
 import com.cdm.tfg_ringhere.model.Alarma
 import com.cdm.tfg_ringhere.ui.components.RingHereBottomBar
 import com.cdm.tfg_ringhere.utils.SessionManager
@@ -59,7 +62,6 @@ fun DashboardScreen(navController: NavController, viewModel: AlarmaViewModel) {
         viewModel.sincronizarAlarmas(context)
     }
 
-    // Gestión de Permisos GPS
     val backgroundPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -91,13 +93,13 @@ fun DashboardScreen(navController: NavController, viewModel: AlarmaViewModel) {
     }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background, // 🌟 DINÁMICO
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = { TopBarDesign(navController = navController, viewModel = viewModel) },
         bottomBar = { RingHereBottomBar(navController = navController, rutaActual = "dashboard") },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { navController.navigate("mapa") },
-                containerColor = MaterialTheme.colorScheme.primary, // 🌟 DINÁMICO
+                containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = Color.White,
                 shape = CircleShape,
                 modifier = Modifier.padding(bottom = 16.dp)
@@ -178,7 +180,7 @@ fun HeroCardGPS(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary) // 🌟 SE ADAPTA AL AZUL OSCURO/NEGRO
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
     ) {
         Column(modifier = Modifier.padding(24.dp)) {
             Text(
@@ -286,9 +288,18 @@ fun TopBarDesign(navController: NavController, viewModel: AlarmaViewModel) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Menu, contentDescription = "Menú", tint = MaterialTheme.colorScheme.primary)
-            Spacer(modifier = Modifier.width(16.dp))
-            Text("Ring here", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Image(
+                painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+                contentDescription = "Logo Ring Here",
+                modifier = Modifier.size(36.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = "Ring here",
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
 
         Box {
@@ -357,7 +368,7 @@ fun AlarmaItemCard(alarma: Alarma, isEditing: Boolean, onDelete: () -> Unit, onT
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant) // 🌟 TARJETA GRIS EN CLARO / CARBON EN OSCURO
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp),
