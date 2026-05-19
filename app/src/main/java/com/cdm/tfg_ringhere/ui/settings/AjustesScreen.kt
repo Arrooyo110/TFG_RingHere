@@ -2,6 +2,9 @@ package com.cdm.tfg_ringhere.ui.settings
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.MediaPlayer
+import android.media.RingtoneManager
 import android.net.Uri
 import android.provider.Settings
 import androidx.compose.foundation.background
@@ -30,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.cdm.tfg_ringhere.ui.components.RingHereBottomBar
+import com.cdm.tfg_ringhere.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,14 +45,23 @@ fun AjustesScreen(navController: NavController) {
     var vibracion by remember { mutableStateOf(prefs.getBoolean("vibracion", true)) }
 
     var temaActual by remember { mutableStateOf(prefs.getString("tema_app", "Predeterminado del sistema") ?: "Predeterminado del sistema") }
-    var gpsPrec by remember { mutableStateOf(prefs.getString("gps_precision", "Alta (Recomendado)") ?: "Alta (Recomendado)") }
     var tonoActual by remember { mutableStateOf(prefs.getString("tono_alarma", "Radar (Predeterminado)") ?: "Radar (Predeterminado)") }
 
     var showThemeDialog by remember { mutableStateOf(false) }
-    var showGpsDialog by remember { mutableStateOf(false) }
     var showRingtoneDialog by remember { mutableStateOf(false) }
 
-    // El fondo principal ahora lee el color de fondo del tema actual
+    // --- REPRODUCTOR DE AUDIO PARA LA VISTA PREVIA ---
+    var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
+
+    // Limpiador de memoria: Apaga el sonido si el usuario se sale de la pantalla o cierra el menú de golpe
+    DisposableEffect(showRingtoneDialog) {
+        onDispose {
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+            mediaPlayer = null
+        }
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -97,12 +110,6 @@ fun AjustesScreen(navController: NavController) {
             item {
                 SettingsSection(title = "UBICACIÓN Y BATERÍA") {
                     SettingsActionItem(
-                        title = "Precisión del GPS",
-                        subtitle = gpsPrec,
-                        onClick = { showGpsDialog = true }
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.background, thickness = 2.dp)
-                    SettingsActionItem(
                         title = "Permisos de ubicación",
                         subtitle = "Gestionar el acceso en segundo plano",
                         icon = Icons.Default.OpenInNew,
@@ -131,6 +138,23 @@ fun AjustesScreen(navController: NavController) {
                         onToggle = { nuevoValor ->
                             vibracion = nuevoValor
                             prefs.edit().putBoolean("vibracion", nuevoValor).apply()
+
+                            // Vista previa de vibración al activar el botón
+                            if (nuevoValor) {
+                                val vibrator = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                                    val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
+                                    vibratorManager.defaultVibrator
+                                } else {
+                                    @Suppress("DEPRECATION")
+                                    context.getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
+                                }
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                    vibrator.vibrate(android.os.VibrationEffect.createOneShot(200, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                                } else {
+                                    @Suppress("DEPRECATION")
+                                    vibrator.vibrate(200)
+                                }
+                            }
                         }
                     )
                 }
@@ -139,9 +163,11 @@ fun AjustesScreen(navController: NavController) {
             item {
                 SettingsSection(title = "INFORMACIÓN") {
                     SettingsActionItem(
-                        title = "Política de Privacidad",
+                        title = "Código y Documentación",
+                        subtitle = "Ver repositorio del proyecto",
+                        icon = Icons.Default.OpenInNew,
                         onClick = {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com"))
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Arrooyo110/TFG_RingHere"))
                             context.startActivity(intent)
                         }
                     )
@@ -163,7 +189,7 @@ fun AjustesScreen(navController: NavController) {
         OptionsDialog(
             title = "Elige un tema",
             options = listOf("Predeterminado del sistema", "Claro", "Oscuro"),
-            selectedOption = temaActual,
+            initialSelection = temaActual,
             onOptionSelected = { seleccion ->
                 temaActual = seleccion
                 prefs.edit().putString("tema_app", seleccion).apply()
@@ -173,25 +199,46 @@ fun AjustesScreen(navController: NavController) {
         )
     }
 
-    if (showGpsDialog) {
-        OptionsDialog(
-            title = "Precisión del GPS",
-            options = listOf("Alta (Recomendado)", "Equilibrada", "Baja (Ahorro de batería)"),
-            selectedOption = gpsPrec,
-            onOptionSelected = { seleccion ->
-                gpsPrec = seleccion
-                prefs.edit().putString("gps_precision", seleccion).apply()
-                showGpsDialog = false
-            },
-            onDismiss = { showGpsDialog = false }
-        )
-    }
-
     if (showRingtoneDialog) {
         OptionsDialog(
             title = "Tono de alarma",
-            options = listOf("Radar (Predeterminado)", "Campana clásica", "Digital", "Silencioso"),
-            selectedOption = tonoActual,
+            // 1. La lista exacta de opciones
+            options = listOf("Radar (Predeterminado)", "Campana clásica", "Digital", "Predeterminado del sistema", "Silencioso"),
+            initialSelection = tonoActual,
+            onPreview = { seleccion ->
+                // Detenemos cualquier sonido que estuviera sonando
+                mediaPlayer?.stop()
+                mediaPlayer?.release()
+                mediaPlayer = null
+
+                // Si no es el modo silencioso, buscamos el tono y le damos al Play
+                if (seleccion != "Silencioso") {
+                    // 2. Mapeamos cada texto con su archivo .mp3 correspondiente
+                    val uri = when(seleccion) {
+                        "Radar (Predeterminado)" -> Uri.parse("android.resource://${context.packageName}/${R.raw.radar_alarm}")
+                        "Campana clásica" -> Uri.parse("android.resource://${context.packageName}/${R.raw.classic_alarm}")
+                        "Digital" -> Uri.parse("android.resource://${context.packageName}/${R.raw.digital_alarm}")
+                        "Predeterminado del sistema" -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                        else -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                    }
+
+                    try {
+                        mediaPlayer = MediaPlayer().apply {
+                            setDataSource(context, uri)
+                            setAudioAttributes(
+                                AudioAttributes.Builder()
+                                    .setUsage(AudioAttributes.USAGE_ALARM)
+                                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                    .build()
+                            )
+                            prepare()
+                            start()
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            },
             onOptionSelected = { seleccion ->
                 tonoActual = seleccion
                 prefs.edit().putString("tono_alarma", seleccion).apply()
@@ -202,14 +249,19 @@ fun AjustesScreen(navController: NavController) {
     }
 }
 
+// --- DIÁLOGO ACTUALIZADO CON ESTADO LOCAL Y BOTÓN GUARDAR ---
 @Composable
 fun OptionsDialog(
     title: String,
     options: List<String>,
-    selectedOption: String,
+    initialSelection: String,
     onOptionSelected: (String) -> Unit,
+    onPreview: (String) -> Unit = {},
     onDismiss: () -> Unit
 ) {
+    // Estado local para que el botón no se cierre hasta pulsar "Guardar"
+    var seleccionLocal by remember { mutableStateOf(initialSelection) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = title, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) },
@@ -221,15 +273,18 @@ fun OptionsDialog(
                             .fillMaxWidth()
                             .height(56.dp)
                             .selectable(
-                                selected = (option == selectedOption),
-                                onClick = { onOptionSelected(option) },
+                                selected = (option == seleccionLocal),
+                                onClick = {
+                                    seleccionLocal = option
+                                    onPreview(option) // Lanzamos el sonido de prueba
+                                },
                                 role = Role.RadioButton
                             )
                             .padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RadioButton(
-                            selected = (option == selectedOption),
+                            selected = (option == seleccionLocal),
                             onClick = null,
                             colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.primary)
                         )
@@ -244,13 +299,20 @@ fun OptionsDialog(
             }
         },
         confirmButton = {
+            TextButton(onClick = { onOptionSelected(seleccionLocal) }) {
+                Text("Guardar", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancelar", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                Text("Cancelar", color = MaterialTheme.colorScheme.primary)
             }
         },
         containerColor = MaterialTheme.colorScheme.surface
     )
 }
+
+// (El resto de componentes visuales HeaderAjustes, SettingsSection, SettingsActionItem, etc. se mantienen igual)
 
 @Composable
 fun HeaderAjustes() {
@@ -384,7 +446,7 @@ fun PrivacyFooter() {
             Icon(Icons.Default.Security, contentDescription = "Privacidad", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                "Tus datos de ubicación nunca salen de este dispositivo. Todo el procesamiento de geofencing ocurre localmente para tu privacidad.",
+                "Tu ubicación en tiempo real se procesa localmente en tu dispositivo. Solo las coordenadas de tus alarmas se sincronizan de forma segura en la nube.",
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 fontSize = 12.sp,
                 textAlign = TextAlign.Center,

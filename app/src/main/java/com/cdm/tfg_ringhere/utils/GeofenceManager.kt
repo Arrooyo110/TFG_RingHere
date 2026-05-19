@@ -40,7 +40,7 @@ class GeofenceManager(context: Context) {
 
         // 2. Creamos la "Geovalla" matemática
         val geofence = Geofence.Builder()
-            .setRequestId(alarma.id) // Usamos el UUID de nuestra base de datos para no perderla
+            .setRequestId("${alarma.id}|${alarma.nombre}") // Usamos el UUID de nuestra base de datos para no perderla
             .setCircularRegion(alarma.latitud, alarma.longitud, alarma.radio)
             .setExpirationDuration(Geofence.NEVER_EXPIRE) // Estará ahí hasta que la borremos o apaguemos
             .setTransitionTypes(tipoTransicion)
@@ -48,7 +48,7 @@ class GeofenceManager(context: Context) {
 
         // 3. Empaquetamos la petición
         val geofencingRequest = GeofencingRequest.Builder()
-            .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
+            .setInitialTrigger(0)
             .addGeofence(geofence)
             .build()
 

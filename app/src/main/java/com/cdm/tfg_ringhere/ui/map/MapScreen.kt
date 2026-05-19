@@ -1,10 +1,8 @@
 package com.cdm.tfg_ringhere.ui.map
 
-// =====================================================================
-// 1. IMPORTACIONES
-// =====================================================================
 import android.annotation.SuppressLint
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -39,9 +37,6 @@ import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.maps.android.compose.*
 import kotlinx.coroutines.launch
 
-// =====================================================================
-// 2. CONFIGURACIÓN Y MODELOS DE DATOS LOCALES
-// =====================================================================
 private val AccentCyan = Color(0xFF31E2C2)
 private val AlarmRed = Color(0xFFC62828)
 private val InactiveGray = Color(0xFF9E9E9E)
@@ -52,18 +47,16 @@ enum class MapOptionData(val title: String, val type: MapType, val icon: ImageVe
     Hybrid("Híbrido", MapType.HYBRID, Icons.Default.Layers)
 }
 
-// =====================================================================
-// 3. PANTALLA PRINCIPAL DEL MAPA
-// =====================================================================
 @SuppressLint("MissingPermission")
 @Composable
 fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // --- LÓGICA DEL TEMA (MODO OSCURO REACTIVO) ---
     val prefs = remember { context.getSharedPreferences("RingHereSettings", Context.MODE_PRIVATE) }
-    var temaConfigurado by remember { mutableStateOf(prefs.getString("tema_app", "Predeterminado del sistema") ?: "Predeterminado del sistema") }
+    var temaConfigurado by remember {
+        mutableStateOf(prefs.getString("tema_app", "Predeterminado del sistema") ?: "Predeterminado del sistema")
+    }
 
     DisposableEffect(prefs) {
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { sharedPrefs, key ->
@@ -81,7 +74,6 @@ fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
         else -> isSystemInDarkTheme()
     }
 
-    // --- ESTADOS LOCALES ---
     val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
     var selectedOption by remember { mutableStateOf(MapOptionData.Standard) }
     var marcadorPosicion by remember { mutableStateOf<LatLng?>(null) }
@@ -90,18 +82,15 @@ fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
     val radioAlarma = 450.0
     val alarmas by viewModel.alarmas.collectAsState(initial = emptyList())
 
-    // Posición inicial por defecto
     val defaultPos = LatLng(40.4167, -3.7037)
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(defaultPos, 12f)
     }
 
-    // --- PROPIEDADES DINÁMICAS DEL MAPA (AQUÍ SUCEDE LA MAGIA DEL JSON OSCURO) ---
     val mapProperties = remember(esModoOscuro, selectedOption) {
         MapProperties(
             mapType = selectedOption.type,
             isMyLocationEnabled = true,
-            // Solo aplicamos el JSON oscuro si estamos en mapa "Normal" y el modo oscuro está activo
             mapStyleOptions = if (esModoOscuro && selectedOption.type == MapType.NORMAL) {
                 MapStyleOptions(getDarkMapJsonStyle())
             } else null
@@ -109,7 +98,6 @@ fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // --- COMPONENTE MAPA DE GOOGLE ---
         GoogleMap(
             modifier = Modifier.fillMaxSize(),
             cameraPositionState = cameraPositionState,
@@ -128,10 +116,8 @@ fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
                 layersMenuExpanded = false
             }
         ) {
-            // 1. Dibujar alarmas ya creadas
             alarmas.forEach { alarma ->
                 val position = LatLng(alarma.latitud, alarma.longitud)
-                // Utilizamos el color primario del tema para integrarnos perfectamente
                 val activeBlue = MaterialTheme.colorScheme.primary
                 val baseColor = if (!alarma.isActive) InactiveGray else if (alarma.isAlEntrar) activeBlue else AlarmRed
 
@@ -143,18 +129,41 @@ fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
                     strokeWidth = 2f
                 )
 
-                Marker(
+                MarkerInfoWindow(
                     state = MarkerState(position = position),
-                    title = alarma.nombre,
                     icon = BitmapDescriptorFactory.defaultMarker(
                         if (!alarma.isActive || alarma.isAlEntrar) BitmapDescriptorFactory.HUE_AZURE
                         else BitmapDescriptorFactory.HUE_RED
                     ),
                     alpha = if (alarma.isActive) 1.0f else 0.5f
-                )
+                ) {
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = alarma.nombre,
+                                fontWeight = FontWeight.Bold,
+                                color = activeBlue,
+                                fontSize = 16.sp
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (alarma.isAlEntrar) "Alarma al entrar" else "Alarma al salir",
+                                color = Color.Gray,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
             }
 
-            // 2. Dibujar previsualización de nueva alarma
             marcadorPosicion?.let { posicion ->
                 Marker(
                     state = MarkerState(position = posicion),
@@ -171,7 +180,6 @@ fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
             }
         }
 
-        // --- BOTONES FLOTANTES LATERALES ---
         Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -179,7 +187,6 @@ fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Botón: Ir a mi ubicación
             FloatingActionButton(
                 onClick = {
                     fusedLocationClient.lastLocation.addOnSuccessListener { location ->
@@ -189,7 +196,7 @@ fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
                                 cameraPositionState.animate(CameraUpdateFactory.newCameraPosition(CameraPosition.fromLatLngZoom(userPos, 15f)))
                             }
                         } ?: run {
-                            android.widget.Toast.makeText(context, "Buscando señal GPS...", android.widget.Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Buscando señal GPS...", Toast.LENGTH_SHORT).show()
                         }
                     }
                 },
@@ -198,10 +205,9 @@ fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
                 shape = CircleShape,
                 modifier = Modifier.size(56.dp)
             ) {
-                Icon(Icons.Default.MyLocation, contentDescription = "Centrar")
+                Icon(Icons.Default.MyLocation, contentDescription = "Centrar mapa")
             }
 
-            // Botón: Selector de Capas
             MapLayerFabSelector(
                 isExpanded = layersMenuExpanded,
                 currentOption = selectedOption,
@@ -213,7 +219,6 @@ fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
             )
         }
 
-        // --- BOTÓN INFERIOR DE CONFIRMACIÓN Y NAVEGACIÓN ---
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -240,9 +245,6 @@ fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
     }
 }
 
-// =====================================================================
-// 4. SUBCOMPONENTES (MENÚ DE CAPAS)
-// =====================================================================
 @Composable
 fun MapLayerFabSelector(
     isExpanded: Boolean,
@@ -262,18 +264,18 @@ fun MapLayerFabSelector(
                     .width(160.dp)
                     .heightIn(max = 200.dp),
                 shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surface, // 🌟 Adaptable al modo oscuro
+                color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 8.dp
             ) {
                 Column(modifier = Modifier.padding(8.dp).verticalScroll(rememberScrollState())) {
                     Text(
-                        "TIPO DE MAPA",
+                        text = "TIPO DE MAPA",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                         modifier = Modifier.padding(8.dp)
                     )
-                    MapOptionData.values().forEach { option ->
+                    MapOptionData.entries.forEach { option ->
                         val isSelected = option == currentOption
                         val backgroundColor = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent
                         val contentColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
@@ -287,9 +289,14 @@ fun MapLayerFabSelector(
                                 .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(option.icon, null, tint = contentColor, modifier = Modifier.size(20.dp))
+                            Icon(option.icon, contentDescription = null, tint = contentColor, modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text(option.title, color = contentColor, fontSize = 14.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium)
+                            Text(
+                                text = option.title,
+                                color = contentColor,
+                                fontSize = 14.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            )
                         }
                     }
                 }
@@ -303,18 +310,11 @@ fun MapLayerFabSelector(
             shape = CircleShape,
             modifier = Modifier.size(56.dp)
         ) {
-            Icon(Icons.Default.Layers, contentDescription = "Capas")
+            Icon(Icons.Default.Layers, contentDescription = "Capas de mapa")
         }
     }
 }
 
-// =====================================================================
-// 5. UTILIDADES Y ESTILOS
-// =====================================================================
-/**
- * Devuelve el String JSON para oscurecer el mapa nativo de Google Maps.
- * Extraído directamente del panel web del proyecto RingHere.
- */
 private fun getDarkMapJsonStyle(): String {
     return """
         [

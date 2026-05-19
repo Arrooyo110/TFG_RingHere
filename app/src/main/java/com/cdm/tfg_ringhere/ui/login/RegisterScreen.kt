@@ -1,11 +1,11 @@
 package com.cdm.tfg_ringhere.ui.login
 
 import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -14,15 +14,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.cdm.tfg_ringhere.R
 import com.cdm.tfg_ringhere.data.network.RetrofitClient
 import com.cdm.tfg_ringhere.data.network.UsuarioCreate
 import kotlinx.coroutines.launch
@@ -62,16 +63,25 @@ fun RegisterScreen(navController: NavController, isSpanish: Boolean) {
                 .fillMaxWidth()
                 .padding(vertical = 40.dp)
         ) {
-            // Logo / Nombre App
+            // Logo de la App
+            Image(
+                painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+                contentDescription = "Logo de Ring Here",
+                modifier = Modifier.size(100.dp)
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Nombre App
             Text(
-                text = "Ring here",
-                fontSize = 34.sp,
+                text = "Ring Here",
+                fontSize = 30.sp,
                 fontWeight = FontWeight.Bold,
                 color = BrandBlue,
                 letterSpacing = 1.sp
             )
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
             // Título y Subtítulo
             Text(
@@ -182,21 +192,9 @@ fun RegisterScreen(navController: NavController, isSpanish: Boolean) {
                         text = if (isSpanish) "REGISTRARSE" else "SIGN UP",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White // <-- LETRA BLANCA FORZADA
+                        color = Color.White
                     )
                 }
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Or register with
-            Text(text = if (isSpanish) "O regístrate con" else "Or register with", fontSize = 14.sp, color = TextSecondary)
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                SocialCircleButton(Icons.Default.AccountCircle)
-                SocialCircleButton(Icons.Default.Home)
             }
 
             Spacer(modifier = Modifier.height(40.dp))
@@ -245,8 +243,8 @@ fun CustomRegisterField(
             .height(56.dp),
         shape = RoundedCornerShape(16.dp),
         colors = TextFieldDefaults.colors(
-            focusedTextColor = Color.Black,   // <-- LETRA SIEMPRE OSCURA
-            unfocusedTextColor = Color.Black, // <-- LETRA SIEMPRE OSCURA
+            focusedTextColor = Color.Black,
+            unfocusedTextColor = Color.Black,
             focusedContainerColor = SoftGrayBg,
             unfocusedContainerColor = SoftGrayBg,
             disabledContainerColor = SoftGrayBg,
@@ -255,18 +253,4 @@ fun CustomRegisterField(
         ),
         singleLine = true
     )
-}
-
-@Composable
-fun SocialCircleButton(icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    Box(
-        modifier = Modifier
-            .size(54.dp)
-            .clip(CircleShape)
-            .background(SoftGrayBg)
-            .clickable { /* Social Login */ },
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(icon, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(24.dp))
-    }
 }

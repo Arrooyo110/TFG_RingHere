@@ -12,12 +12,10 @@ import android.content.Intent
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import com.cdm.tfg_ringhere.R
 import com.cdm.tfg_ringhere.ui.alarm.AlarmaActivaActivity
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofenceStatusCodes
 import com.google.android.gms.location.GeofencingEvent
-import kotlin.random.Random
 
 // =====================================================================
 // 2. RECEPTOR DE EVENTOS DE GEOFENCING
@@ -25,8 +23,8 @@ import kotlin.random.Random
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
     companion object {
-        // Renombrado para evitar conflictos con la caché de canales antiguos de Android
-        const val CHANNEL_ID = "geoalarmas_fullscreen_channel"
+        // Renombramos el canal para que Android olvide la configuración ruidosa anterior
+        const val CHANNEL_ID = "geoalarmas_silencioso_v1"
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -48,14 +46,17 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             val triggeringGeofences = geofencingEvent.triggeringGeofences
 
             triggeringGeofences?.forEach { geofence ->
-                // El requestId contiene el ID o nombre que asignaste al crear la geovalla
-                val idAlarma = geofence.requestId
+                // EXTRAEMOS EL NOMBRE REAL SEPARANDO EL STRING
+                val partes = geofence.requestId.split("|")
+                val idAlarma = partes[0]
+                val nombreAlarma = if (partes.size > 1) partes[1] else "Alarma"
+
                 val accion = if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_ENTER) "Entrando a" else "Saliendo de"
 
-                Log.d("RADAR", "¡BEEP BEEP! Alarma Activada: $idAlarma - Acción: $accion")
+                Log.d("RADAR", "¡BEEP BEEP! Alarma Activada: $nombreAlarma - Acción: $accion")
 
-                // --- DISPARAR LA MAGIA EN PANTALLA COMPLETA ---
-                lanzarAlarmaPantallaCompleta(context, idAlarma, accion)
+                // Pasamos el nombre real a la pantalla completa
+                lanzarAlarmaPantallaCompleta(context, nombreAlarma, accion)
             }
         } else {
             Log.e("RADAR", "Transición inválida: $geofenceTransition")
@@ -63,7 +64,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     }
 
     // =====================================================================
-// 3. GENERADOR DEL FULL-SCREEN INTENT
+// 3. GENERADOR DEL FULL-SCREEN INTENT (SILENCIOSO)
 // =====================================================================
     private fun lanzarAlarmaPantallaCompleta(context: Context, nombreAlarma: String, accion: String) {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -72,20 +73,23 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Alarmas Críticas a Pantalla Completa",
+                "Alarmas a Pantalla Completa",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Canal diseñado para despertar el dispositivo al cruzar geovallas"
-                enableVibration(true)
-                // Nota: No inyectamos sonido aquí porque la 'AlarmaActivaActivity'
-                // ya utiliza MediaPlayer nativo para sonar en bucle por encima del bloqueo.
+                description = "Lanza la pantalla roja silenciosamente"
+                enableVibration(false) // La vibración ya la hace la pantalla roja
+                setSound(null, null)   // 🤫 SILENCIAMOS LA NOTIFICACIÓN NATIVA
             }
             notificationManager.createNotificationChannel(channel)
         }
 
+        // 🚀 NUEVO: Creamos un ID predecible (basado en el nombre de la alarma)
+        val notificationId = nombreAlarma.hashCode()
+
         // 2. Crear el Intent hacia nuestra Actividad especial de pantalla roja
         val fullScreenIntent = Intent(context, AlarmaActivaActivity::class.java).apply {
             putExtra("NOMBRE_ALARMA", nombreAlarma)
+            putExtra("NOTIFICACION_ID", notificationId) // 🚀 LE PASAMOS EL ID A LA PANTALLA ROJA
             // Estas flags aseguran que la actividad se lance fresca y pase por encima del resto
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
@@ -93,23 +97,26 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         // 3. Envolverlo en un PendingIntent para dárselo al gestor de notificaciones
         val fullScreenPendingIntent = PendingIntent.getActivity(
             context,
-            Random.nextInt(), // ID aleatorio para evitar que varias alarmas colisionen
+            notificationId, // 🚀 Usamos el ID específico en lugar de un número aleatorio
             fullScreenIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         // 4. Construir la notificación armando el Full-Screen Intent
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_map)
+            .setSmallIcon(android.R.drawable.ic_dialog_map) // TODO: Cambiar por R.drawable.tu_icono
             .setContentTitle("¡Geoalarma Alcanzada!")
             .setContentText("$accion la zona: $nombreAlarma")
             .setPriority(NotificationCompat.PRIORITY_MAX) // MÁXIMA PRIORIDAD
             .setCategory(NotificationCompat.CATEGORY_ALARM) // Evita las restricciones de "No Molestar"
-            .setFullScreenIntent(fullScreenPendingIntent, true) // 🚀 AQUÍ SE DESPIERTA EL MÓVIL
+            .setSound(null) // 🤫 SILENCIAMOS LA NOTIFICACIÓN NATIVA
+            .setVibrate(null) // Quitamos vibración de la notificación
+            .setContentIntent(fullScreenPendingIntent) // 🚀 Para que al tocarla abra la app
+            .setFullScreenIntent(fullScreenPendingIntent, true)
             .setAutoCancel(true)
             .build()
 
-        // 5. Disparar
-        notificationManager.notify(Random.nextInt(), notification)
+        // 5. Disparar usando nuestro ID específico
+        notificationManager.notify(notificationId, notification) // 🚀 Usamos el ID en lugar de un número aleatorio
     }
 }
