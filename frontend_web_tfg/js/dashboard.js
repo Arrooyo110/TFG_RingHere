@@ -82,7 +82,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     const panelAdmin = document.getElementById("panelAdmin");
     const btnLogout = document.getElementById("btnLogout");
 
-    // 🚀 EXTRACCIÓN AVANZADA: Decodificamos el JWT para extraer el email real (sub) de forma segura
     let emailSesion = localStorage.getItem("email") || localStorage.getItem("user_email");
     
     if (!emailSesion && token) {
@@ -267,6 +266,29 @@ document.addEventListener("DOMContentLoaded", async () => {
                     icon: pinSvg
                 });
 
+                // Creación del InfoWindow (Bocadillo interactivo)
+                const textoTipo = alarma.is_al_entrar ? "Alarma al entrar" : "Alarma al salir";
+                const infoWindow = new google.maps.InfoWindow({
+                    content: `
+                        <div style="padding: 4px; text-align: center; min-width: 120px;">
+                            <p style="color: #3b82f6; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 800; font-size: 15px; margin: 0; padding-bottom: 4px;">
+                                ${alarma.nombre || 'Alarma'}
+                            </p>
+                            <p style="color: #64748b; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 12px; margin: 0;">
+                                ${textoTipo}
+                            </p>
+                        </div>
+                    `
+                });
+
+                // Evento para abrir el bocadillo al clicar en la chincheta
+                marcador.addListener("click", () => {
+                    infoWindow.open({
+                        anchor: marcador,
+                        map: mapaGlobal,
+                    });
+                });
+
                 const circulo = new google.maps.Circle({
                     strokeColor: colorHex,
                     strokeOpacity: 0.8,
@@ -380,7 +402,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             is_active: true,
             is_al_entrar: triggerTypeSeleccionado === "entrar", 
             fecha_creacion: Date.now(), 
-            user_email: emailSesion, // Usamos la variable unificada y segura
+            user_email: emailSesion, 
             usuario_id: idUsuario
         };
 
@@ -532,7 +554,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         } catch (error) {
             setSyncStatus('error'); 
-            alarmasContainer.innerHTML = `<p class="text-sm text-red-500"> Error de red: ${error.message}</p>`;
+            alarmasContainer.innerHTML = `<p class="text-sm text-red-500 font-medium"><svg class="w-4 h-4 inline-block mr-1 -mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Error de red: ${error.message}</p>`;
         }
     }
 
