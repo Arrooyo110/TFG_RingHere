@@ -1,7 +1,12 @@
 package com.cdm.tfg_ringhere.ui.map
 
+// =====================================================================
+// 1. IMPORTACIONES
+// =====================================================================
 import android.annotation.SuppressLint
 import android.content.Context
+import android.location.Geocoder
+import android.os.Build
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
@@ -11,6 +16,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -22,7 +29,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -35,8 +44,13 @@ import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.maps.android.compose.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.util.Locale
 
+// =====================================================================
+// 2. CONFIGURACIÓN Y MODELOS DE DATOS LOCALES
+// =====================================================================
 private val AccentCyan = Color(0xFF31E2C2)
 private val AlarmRed = Color(0xFFC62828)
 private val InactiveGray = Color(0xFF9E9E9E)
@@ -47,6 +61,9 @@ enum class MapOptionData(val title: String, val type: MapType, val icon: ImageVe
     Hybrid("Híbrido", MapType.HYBRID, Icons.Default.Layers)
 }
 
+// =====================================================================
+// 3. PANTALLA PRINCIPAL DEL MAPA
+// =====================================================================
 @SuppressLint("MissingPermission")
 @Composable
 fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
@@ -107,7 +124,7 @@ fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
                 mapToolbarEnabled = false,
                 myLocationButtonEnabled = false
             ),
-            contentPadding = PaddingValues(top = 20.dp, bottom = 100.dp),
+            contentPadding = PaddingValues(top = 90.dp, bottom = 100.dp), // Margen extra arriba para que los botones de Google no se tapen
             onMapLongClick = { latLng ->
                 marcadorPosicion = latLng
                 layersMenuExpanded = false
@@ -180,6 +197,19 @@ fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
             }
         }
 
+        // 🌟 NUEVO: BARRA DE BÚSQUEDA FLOTANTE
+        FloatingSearchBar(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            onLocationFound = { ubicacion ->
+                scope.launch {
+                    cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(ubicacion, 15f))
+                }
+            }
+        )
+
         Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -242,6 +272,100 @@ fun MapScreen(navController: NavController, viewModel: AlarmaViewModel) {
             }
             RingHereBottomBar(navController = navController, rutaActual = "mapa")
         }
+    }
+}
+
+// =====================================================================
+// 4. SUBCOMPONENTES (MENÚ DE CAPAS Y BÚSQUEDA)
+// =====================================================================
+
+@Composable
+fun FloatingSearchBar(modifier: Modifier = Modifier, onLocationFound: (LatLng) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val keyboardController = LocalSoftwareKeyboardController.current
+    var query by remember { mutableStateOf("") }
+    var isSearching by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        TextField(
+            value = query,
+            onValueChange = { query = it },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Buscar en RingHere...", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)) },
+            singleLine = true,
+            leadingIcon = {
+                if (isSearching) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Default.Search, contentDescription = "Buscar", tint = MaterialTheme.colorScheme.primary)
+                }
+            },
+            trailingIcon = {
+                if (query.isNotEmpty()) {
+                    IconButton(onClick = { query = "" }) {
+                        Icon(Icons.Default.Close, contentDescription = "Borrar", tint = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+            },
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(
+                onSearch = {
+                    keyboardController?.hide()
+                    if (query.isNotBlank()) {
+                        isSearching = true
+
+                        // Buscamos en un hilo secundario para no congelar la pantalla
+                        scope.launch(Dispatchers.IO) {
+                            try {
+                                val geocoder = Geocoder(context, Locale.getDefault())
+
+                                // Adaptación moderna para las nuevas políticas de Android 33+ (Tiramisu)
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    geocoder.getFromLocationName(query, 1) { addresses ->
+                                        val location = addresses.firstOrNull()?.let { LatLng(it.latitude, it.longitude) }
+                                        scope.launch(Dispatchers.Main) {
+                                            isSearching = false
+                                            location?.let { onLocationFound(it) } ?: run {
+                                                Toast.makeText(context, "Ubicación no encontrada", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    @Suppress("DEPRECATION")
+                                    val addresses = geocoder.getFromLocationName(query, 1)
+                                    val location = addresses?.firstOrNull()?.let { LatLng(it.latitude, it.longitude) }
+
+                                    scope.launch(Dispatchers.Main) {
+                                        isSearching = false
+                                        location?.let { onLocationFound(it) } ?: run {
+                                            Toast.makeText(context, "Ubicación no encontrada", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                scope.launch(Dispatchers.Main) {
+                                    isSearching = false
+                                    Toast.makeText(context, "Error de red al buscar", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    }
+                }
+            ),
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                cursorColor = MaterialTheme.colorScheme.primary
+            )
+        )
     }
 }
 
@@ -315,6 +439,9 @@ fun MapLayerFabSelector(
     }
 }
 
+// =====================================================================
+// 5. UTILIDADES Y ESTILOS
+// =====================================================================
 private fun getDarkMapJsonStyle(): String {
     return """
         [

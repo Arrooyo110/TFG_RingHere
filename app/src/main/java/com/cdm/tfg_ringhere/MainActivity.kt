@@ -63,7 +63,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val context = LocalContext.current
 
-            // 📡 CONEXIÓN REACTIVA A LOS AJUSTES
+            // CONEXIÓN REACTIVA A LOS AJUSTES
             val prefs = remember { context.getSharedPreferences("RingHereSettings", Context.MODE_PRIVATE) }
 
             // Estados que Compose vigilará de cerca

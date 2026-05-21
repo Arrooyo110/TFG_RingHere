@@ -71,10 +71,6 @@
                 </div>
             </div>
 
-            <div class="flex justify-end text-xs">
-                <a href="#" id="txtForgot" class="text-blue-600 dark:text-blue-400 font-medium hover:underline">¿Has olvidado tu contraseña?</a>
-            </div>
-
             <button type="submit" id="btnSubmit"
                 class="w-full py-3 bg-blue-800 text-white font-semibold rounded-2xl text-sm shadow-md shadow-blue-200 dark:shadow-none hover:bg-blue-900 active:scale-[0.98] transition-all outline-none">
                 Iniciar Sesión
@@ -130,7 +126,6 @@
                     subtitle: "Inicia sesión en tu cuenta",
                     email: "Correo Electrónico",
                     pass: "Contraseña",
-                    forgot: "¿Has olvidado tu contraseña?",
                     loginBtn: "Iniciar Sesión",
                     download: "Descargar App Android"
                 },
@@ -138,7 +133,6 @@
                     subtitle: "Sign in to your account",
                     email: "Email address",
                     pass: "Password",
-                    forgot: "Forgot password?",
                     loginBtn: "Log In",
                     download: "Download Android App"
                 }
@@ -151,7 +145,6 @@
                 document.getElementById('txtLoginSub').innerText = t.subtitle;
                 document.getElementById('lblEmail').innerText = t.email;
                 document.getElementById('lblPass').innerText = t.pass;
-                document.getElementById('txtForgot').innerText = t.forgot;
                 document.getElementById('btnSubmit').innerText = t.loginBtn;
                 document.getElementById('txtDownload').innerText = t.download;
                 langIcon.innerText = currentLang === 'es' ? 'ES' : 'EN';

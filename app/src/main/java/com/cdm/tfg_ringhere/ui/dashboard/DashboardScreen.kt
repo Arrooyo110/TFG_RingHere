@@ -295,7 +295,7 @@ fun TopBarDesign(navController: NavController, viewModel: AlarmaViewModel) {
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                text = "Ring here",
+                text = "RingHere",
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
