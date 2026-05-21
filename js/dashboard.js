@@ -394,7 +394,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (circuloBorrador) circuloBorrador.setMap(null);
             btnConfirmLocation.classList.add("hidden");
             
-            btnSaveAlarm.innerHTML = "<span>🔔</span> Guardar Alarma";
+            btnSaveAlarm.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg> Guardar Alarma`;
             await cargarAlarmasUsuario();
             
         } catch (error) {
@@ -402,7 +402,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             let msg = error.message;
             if (typeof msg === 'object') msg = JSON.stringify(msg, null, 2);
             alert("Error al guardar en el servidor: " + msg);
-            btnSaveAlarm.innerHTML = "<span>🔔</span> Guardar Alarma";
+            btnSaveAlarm.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg> Guardar Alarma`;
         }
     });
     
@@ -465,7 +465,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                             <span id="badge-alarma-${alarma.id}" class="w-2.5 h-2.5 rounded-full transition-colors ${badgeColorClase}"></span>
                             ${alarma.nombre || alarma.titulo || 'Alarma sin título'}
                         </h4>
-                        <p class="text-xs text-slate-400 dark:text-slate-400 mt-1 pl-4">📍 Radio: ${alarma.radio !== undefined ? Math.round(alarma.radio) : '—'}m • ${textoTipo}</p>
+                        <p class="text-xs text-slate-400 dark:text-slate-400 mt-1 pl-4 flex items-center gap-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                            Radio: ${alarma.radio !== undefined ? Math.round(alarma.radio) : '—'}m • ${textoTipo}
+                        </p>
                     </div>
                     
                     <div class="flex items-center gap-4">
@@ -475,7 +478,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         </label>
                         <div class="w-px h-6 bg-slate-200 dark:bg-slate-700"></div>
                         <button class="btn-delete-alarma p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-all" data-id="${alarma.id}" title="Eliminar alarma">
-                            🗑️
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                         </button>
                     </div>
                 </div>
@@ -556,7 +559,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     </td>
                     <td class="p-4 text-center">
                         <button data-id="${u.id}" class="btn-delete-user p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-all" title="Eliminar usuario">
-                            🗑️
+                            <svg class="w-5 h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                         </button>
                     </td>
                 </tr>
@@ -591,7 +594,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             });
 
         } catch (error) {
-            tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-red-500">❌ Error de autorización: ${error.message}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-red-500 font-medium">
+                <svg class="w-5 h-5 inline-block mr-2 -mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                Error de autorización: ${error.message}
+            </td></tr>`;
         }
     }
 
