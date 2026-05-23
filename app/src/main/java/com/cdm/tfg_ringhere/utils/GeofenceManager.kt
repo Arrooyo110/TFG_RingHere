@@ -7,20 +7,20 @@ import android.content.Intent
 import android.util.Log
 import com.cdm.tfg_ringhere.model.Alarma
 import com.cdm.tfg_ringhere.receiver.GeofenceBroadcastReceiver
+import com.google.android.gms.location.CurrentLocationRequest
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingRequest
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 
 class GeofenceManager(context: Context) {
 
-    // Nos conectamos a los Servicios de Localización de Google
     private val geofencingClient = LocationServices.getGeofencingClient(context)
+    private val fusedClient = LocationServices.getFusedLocationProviderClient(context)
     private val applicationContext = context.applicationContext
 
-    // Preparamos el "sobre" que el GPS le entregará a nuestro Receptor cuando crucemos la línea
     private val geofencePendingIntent: PendingIntent by lazy {
         val intent = Intent(applicationContext, GeofenceBroadcastReceiver::class.java)
-        // Usamos FLAG_MUTABLE para que sea compatible con las últimas versiones de Android
         PendingIntent.getBroadcast(
             applicationContext,
             0,
@@ -29,49 +29,100 @@ class GeofenceManager(context: Context) {
         )
     }
 
-    @SuppressLint("MissingPermission") // Ocultamos el aviso porque ya pedimos los permisos en el Dashboard
+    // Helper compartido: construye siempre el mismo requestId
+    // IMPORTANTE: quitarAlarmaDelRadar usa esta misma función para que coincidan
+    fun buildRequestId(alarma: Alarma) = "${alarma.id}|${alarma.nombre}"
+
+    @SuppressLint("MissingPermission")
     fun anadirAlarmaAlRadar(alarma: Alarma) {
-        // 1. Configuramos si el radar debe pitar al ENTRAR o al SALIR
         val tipoTransicion = if (alarma.isAlEntrar) {
             Geofence.GEOFENCE_TRANSITION_ENTER
         } else {
             Geofence.GEOFENCE_TRANSITION_EXIT
         }
 
-        // 2. Creamos la "Geovalla" matemática
+        // Radio mínimo 100m — por debajo Android es muy poco fiable con geofencing
+        val radioEfectivo = alarma.radio.coerceAtLeast(100f)
+        if (alarma.radio < 100f) {
+            Log.w("RADAR_MANAGER", "⚠️ Radio ${alarma.radio}m aumentado a 100m por fiabilidad")
+        }
+
         val geofence = Geofence.Builder()
-            .setRequestId("${alarma.id}|${alarma.nombre}") // Usamos el UUID de nuestra base de datos para no perderla
-            .setCircularRegion(alarma.latitud, alarma.longitud, alarma.radio)
-            .setExpirationDuration(Geofence.NEVER_EXPIRE) // Estará ahí hasta que la borremos o apaguemos
+            .setRequestId(buildRequestId(alarma))
+            .setCircularRegion(alarma.latitud, alarma.longitud, radioEfectivo)
+            .setExpirationDuration(Geofence.NEVER_EXPIRE)
             .setTransitionTypes(tipoTransicion)
+            // FIX: por defecto Android espera ~5 min para notificar, con 1000ms es casi inmediato
+            .setNotificationResponsiveness(1_000)
             .build()
 
-        // 3. Empaquetamos la petición
+        // FIX: setInitialTrigger(0) es correcto para el comportamiento deseado:
+        // - Alarma "al entrar" creada estando dentro → no dispara hasta salir y volver a entrar
+        // - Alarma "al salir" creada estando fuera → no dispara hasta entrar y luego salir
+        // Sin embargo, dejarlo en 0 hace que Android no inicialice el estado del geofence
+        // hasta recibir una muestra de ubicación pasiva (puede tardar mucho en Doze Mode).
+        // Por eso llamamos a forzarActualizacionUbicacion() después de registrar.
         val geofencingRequest = GeofencingRequest.Builder()
             .setInitialTrigger(0)
             .addGeofence(geofence)
             .build()
 
-        // 4. Se la enviamos al satélite/sistema de Google
-        geofencingClient.addGeofences(geofencingRequest, geofencePendingIntent).run {
-            addOnSuccessListener {
-                Log.d("RADAR_MANAGER", "📍 Geovalla [${alarma.nombre}] activada en el GPS.")
+        geofencingClient.addGeofences(geofencingRequest, geofencePendingIntent)
+            .addOnSuccessListener {
+                Log.d("RADAR_MANAGER", "📍 Geovalla [${alarma.nombre}] activada. Radio: ${radioEfectivo}m")
+                // FIX: forzar lectura de ubicación para que Android inicialice
+                // el estado del geofence inmediatamente sin esperar Doze Mode
+                forzarActualizacionUbicacion()
             }
-            addOnFailureListener {
-                Log.e("RADAR_MANAGER", "❌ Error al activar en GPS: ${it.message}")
+            .addOnFailureListener {
+                Log.e("RADAR_MANAGER", "❌ Error al activar [${alarma.nombre}]: ${it.message}")
             }
-        }
     }
 
-    fun quitarAlarmaDelRadar(alarmaId: String) {
-        // Le pasamos la ID (UUID) de la alarma que queremos que Google deje de vigilar
-        geofencingClient.removeGeofences(listOf(alarmaId)).run {
-            addOnSuccessListener {
-                Log.d("RADAR_MANAGER", "🛑 Geovalla [$alarmaId] borrada del GPS.")
+    // FIX: ahora recibe la Alarma completa para poder construir el requestId correcto
+    // Antes recibía solo alarmaId (String) y no coincidía con el "id|nombre" registrado
+    fun quitarAlarmaDelRadar(alarma: Alarma) {
+        geofencingClient.removeGeofences(listOf(buildRequestId(alarma)))
+            .addOnSuccessListener {
+                Log.d("RADAR_MANAGER", "🛑 Geovalla [${alarma.nombre}] borrada del GPS.")
             }
-            addOnFailureListener {
-                Log.e("RADAR_MANAGER", "❌ Error al borrar en GPS: ${it.message}")
+            .addOnFailureListener {
+                Log.e("RADAR_MANAGER", "❌ Error al borrar [${alarma.nombre}]: ${it.message}")
             }
+    }
+
+    // Reregistra una lista completa de alarmas — usado por BootReceiver y AlarmaSyncWorker
+    @SuppressLint("MissingPermission")
+    fun reregistrarTodas(alarmas: List<Alarma>) {
+        if (alarmas.isEmpty()) {
+            Log.d("RADAR_MANAGER", "🔄 Sin alarmas activas para reregistrar")
+            return
         }
+        alarmas.forEach { anadirAlarmaAlRadar(it) }
+        Log.d("RADAR_MANAGER", "🔄 Reregistradas ${alarmas.size} geovallas")
+    }
+
+    // Pide UNA lectura de ubicación de alta precisión tras registrar un geofence.
+    // Esto "despierta" el sistema de geofencing y le da contexto de posición inmediato,
+    // evitando que el geofence quede en estado "limbo" hasta que Doze Mode lo permita.
+    @SuppressLint("MissingPermission")
+    private fun forzarActualizacionUbicacion() {
+        val request = CurrentLocationRequest.Builder()
+            .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+            .setMaxUpdateAgeMillis(0)   // No usar caché, leer ahora mismo
+            .setDurationMillis(10_000)  // Esperar máximo 10s para obtenerla
+            .build()
+
+        fusedClient.getCurrentLocation(request, null)
+            .addOnSuccessListener { location ->
+                if (location != null) {
+                    Log.d("RADAR_MANAGER", "📡 Ubicación forzada OK: ${location.latitude}, ${location.longitude}")
+                } else {
+                    Log.w("RADAR_MANAGER", "⚠️ No se obtuvo ubicación para inicializar geofence")
+                }
+            }
+            .addOnFailureListener {
+                Log.w("RADAR_MANAGER", "⚠️ Error al forzar ubicación: ${it.message}")
+            }
     }
 }

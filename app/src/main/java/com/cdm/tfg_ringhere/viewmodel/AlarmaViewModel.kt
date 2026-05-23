@@ -169,8 +169,15 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
 
                     if (response.isSuccessful && response.body() != null) {
                         val alarmasNube = response.body()!!
+                        val alarmasDeEsteUsuario = alarmasNube.filter { it.userEmail == email }
                         repository.clearAlarmasByUser(email)
-                        repository.insertAlarmas(alarmasNube.filter { it.userEmail == email })
+                        repository.insertAlarmas(alarmasDeEsteUsuario)
+                        // Reregistrar geofences tras sincronizar — los IDs anteriores
+                        // ya no existen y los nuevos no tienen geofence activo todavía
+                        val alarmasActivas = alarmasDeEsteUsuario.filter { it.isActive }
+                        if (alarmasActivas.isNotEmpty()) {
+                            getManager(context).reregistrarTodas(alarmasActivas)
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -233,7 +240,7 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
     fun eliminarAlarma(alarma: Alarma, context: android.content.Context) {
         viewModelScope.launch {
             repository.delete(alarma)
-            getManager(context).quitarAlarmaDelRadar(alarma.id)
+            getManager(context).quitarAlarmaDelRadar(alarma)
             try {
                 val apiService = com.cdm.tfg_ringhere.data.network.RetrofitClient.getApiService(context)
                 apiService.borrarAlarma(alarma.id)
@@ -251,7 +258,7 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
             if (nuevoEstado) {
                 getManager(context).anadirAlarmaAlRadar(alarmaActualizada)
             } else {
-                getManager(context).quitarAlarmaDelRadar(alarma.id)
+                getManager(context).quitarAlarmaDelRadar(alarma)
             }
 
             try {

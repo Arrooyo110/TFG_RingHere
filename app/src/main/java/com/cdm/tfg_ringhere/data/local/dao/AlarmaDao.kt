@@ -23,4 +23,8 @@ interface AlarmaDao {
     // --- FILTRADO POR EMAIL ---
     @Query("SELECT * FROM alarmas WHERE userEmail = :email ORDER BY fechaCreacion DESC")
     fun getAlarmasByUser(email: String): Flow<List<Alarma>>
+
+    // --- USADO POR BootReceiver y AlarmaSyncWorker para reregistrar geofences ---
+    @Query("SELECT * FROM alarmas WHERE isActive = 1")
+    suspend fun getAlarmasActivas(): List<Alarma>
 }

@@ -14,7 +14,6 @@ class AlarmaSyncWorker(
 
     override suspend fun doWork(): Result {
         return try {
-            // Inicializamos la base de datos y el repositorio localmente desde el contexto de la aplicación
             val database = AppDatabase.getDatabase(applicationContext)
             val repository = AlarmaRepository(database.alarmaDao())
 
@@ -22,19 +21,31 @@ class AlarmaSyncWorker(
             val email = sessionManager.getUserEmail() ?: ""
 
             if (email.isNotEmpty()) {
-                val apiService = com.cdm.tfg_ringhere.data.network.RetrofitClient.getApiService(applicationContext)
+                val apiService = com.cdm.tfg_ringhere.data.network.RetrofitClient
+                    .getApiService(applicationContext)
 
-                // Realiza la llamada GET a Render
                 val response = apiService.obtenerAlarmas()
 
                 if (response.isSuccessful && response.body() != null) {
                     val alarmasNube = response.body()!!
+                    val alarmasDeEsteUsuario = alarmasNube.filter { it.userEmail == email }
 
-                    // Limpiamos lo viejo de este usuario e insertamos el listado fresco
                     repository.clearAlarmasByUser(email)
-                    repository.insertAlarmas(alarmasNube.filter { it.userEmail == email })
+                    repository.insertAlarmas(alarmasDeEsteUsuario)
+
+                    // FIX: reregistrar geofences después de sincronizar.
+                    // Al hacer clearAlarmasByUser + insertAlarmas los geofences anteriores
+                    // siguen registrados en Google Play Services con IDs que ya no existen
+                    // en la BD local, y los nuevos no tienen geofence activo todavía.
+                    // Reregistrar aquí garantiza que siempre estén en sincronía.
+                    val alarmasActivas = alarmasDeEsteUsuario.filter { it.isActive }
+                    if (alarmasActivas.isNotEmpty()) {
+                        GeofenceManager(applicationContext).reregistrarTodas(alarmasActivas)
+                        Log.d("AlarmaSyncWorker", "🔄 Geofences reregistrados: ${alarmasActivas.size}")
+                    }
                 }
             }
+
             Result.success()
         } catch (e: Exception) {
             Log.e("AlarmaSyncWorker", "Error en segundo plano: ${e.message}")
