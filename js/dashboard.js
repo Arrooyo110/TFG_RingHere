@@ -628,7 +628,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     // ==========================================
     function alternarEstilosMenu(pestanaActiva, pestanaInactiva) {
         pestanaActiva.className = "w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-2xl bg-blue-800 text-white shadow-md shadow-blue-100 dark:shadow-none transition-all";
+        // FIX: preservar "hidden" si el elemento era invisible (ej. btnNavAdmin para role=user)
+        const eraOculto = pestanaInactiva.classList.contains("hidden");
         pestanaInactiva.className = "w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-2xl text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-all";
+        if (eraOculto) pestanaInactiva.classList.add("hidden");
     }
 
     btnNavDashboard.addEventListener("click", () => {
