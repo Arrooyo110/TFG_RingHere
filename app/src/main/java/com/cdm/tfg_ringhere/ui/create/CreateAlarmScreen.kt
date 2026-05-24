@@ -193,7 +193,7 @@ fun CreateAlarmScreen(
             Slider(
                 value = radioValue,
                 onValueChange = { radioValue = it },
-                valueRange = 100f..1000f,
+                valueRange = 200f..1000f,
                 colors = SliderDefaults.colors(
                     thumbColor = MaterialTheme.colorScheme.primary,
                     activeTrackColor = MaterialTheme.colorScheme.primary,
