@@ -10,10 +10,15 @@ import android.os.Build
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.cdm.tfg_ringhere.data.local.AppDatabase
+import com.cdm.tfg_ringhere.model.EventoAlarma
 import com.cdm.tfg_ringhere.ui.alarm.AlarmaActivaActivity
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofenceStatusCodes
 import com.google.android.gms.location.GeofencingEvent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
@@ -53,6 +58,18 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                         "Entrando a" else "Saliendo de"
 
                     Log.d("RADAR", "✅ Transición detectada: $accion $nombreAlarma")
+
+                    // Guardar evento en historial con ubicación exacta del disparo
+                    val ubicacion = geofencingEvent.triggeringLocation
+                    guardarEventoEnHistorial(
+                        context = context,
+                        alarmaId = partes[0],
+                        nombreAlarma = nombreAlarma,
+                        tipoTransicion = if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_ENTER) "ENTRAR" else "SALIR",
+                        lat = ubicacion?.latitude ?: 0.0,
+                        lng = ubicacion?.longitude ?: 0.0
+                    )
+
                     lanzarAlarmaPantallaCompleta(context, nombreAlarma, accion)
                 }
             } else {
@@ -63,6 +80,31 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             // FIX: liberar siempre en el bloque finally, incluso si hay excepción,
             // para no dejar el WakeLock activo y drenar la batería
             if (wakeLock.isHeld) wakeLock.release()
+        }
+    }
+
+    private fun guardarEventoEnHistorial(
+        context: Context,
+        alarmaId: String,
+        nombreAlarma: String,
+        tipoTransicion: String,
+        lat: Double,
+        lng: Double
+    ) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val evento = EventoAlarma(
+                    alarmaId = alarmaId,
+                    nombreAlarma = nombreAlarma,
+                    tipoTransicion = tipoTransicion,
+                    latitudDetectada = lat,
+                    longitudDetectada = lng
+                )
+                AppDatabase.getDatabase(context).eventoAlarmaDao().insertEvento(evento)
+                Log.d("RADAR", "📋 Evento guardado en historial: $nombreAlarma ($tipoTransicion) @ $lat,$lng")
+            } catch (e: Exception) {
+                Log.e("RADAR", "❌ Error guardando historial: ${e.message}")
+            }
         }
     }
 

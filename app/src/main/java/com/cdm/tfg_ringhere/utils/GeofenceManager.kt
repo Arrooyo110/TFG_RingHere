@@ -35,16 +35,24 @@ class GeofenceManager(context: Context) {
 
     @SuppressLint("MissingPermission")
     fun anadirAlarmaAlRadar(alarma: Alarma) {
+        // Para "al entrar" usamos DWELL en vez de ENTER:
+        // ENTER dispara en cuanto el GPS dice que cruzaste, incluso si es
+        // un bounce puntual o vas en coche a alta velocidad.
+        // DWELL espera loiteringDelay ms dentro del área antes de confirmar,
+        // filtrando falsas entradas y pasos rápidos sin intención de quedarse.
+        // Para "al salir" mantenemos EXIT (no hay equivalente de dwell para salida).
         val tipoTransicion = if (alarma.isAlEntrar) {
-            Geofence.GEOFENCE_TRANSITION_ENTER
+            Geofence.GEOFENCE_TRANSITION_DWELL
         } else {
             Geofence.GEOFENCE_TRANSITION_EXIT
         }
 
         // Radio mínimo 100m — por debajo Android es muy poco fiable con geofencing
-        val radioEfectivo = alarma.radio.coerceAtLeast(100f)
-        if (alarma.radio < 100f) {
-            Log.w("RADAR_MANAGER", "⚠️ Radio ${alarma.radio}m aumentado a 100m por fiabilidad")
+        // Radio mínimo 200m: con 100m y velocidad de coche (~50km/h) el sistema
+        // de geofencing puede no muestrear a tiempo y perder la transición
+        val radioEfectivo = alarma.radio.coerceAtLeast(200f)
+        if (alarma.radio < 200f) {
+            Log.w("RADAR_MANAGER", "⚠️ Radio ${alarma.radio}m aumentado a 200m por fiabilidad")
         }
 
         val geofence = Geofence.Builder()
@@ -54,6 +62,10 @@ class GeofenceManager(context: Context) {
             .setTransitionTypes(tipoTransicion)
             // FIX: por defecto Android espera ~5 min para notificar, con 1000ms es casi inmediato
             .setNotificationResponsiveness(1_000)
+            // loiteringDelay: tiempo que debes estar dentro antes de confirmar DWELL.
+            // Solo aplica a alarmas "al entrar". 15s es suficiente para filtrar
+            // pasos rápidos en coche pero no demasiado para uso peatonal.
+            .setLoiteringDelay(15_000)
             .build()
 
         // FIX: setInitialTrigger(0) es correcto para el comportamiento deseado:
@@ -70,9 +82,11 @@ class GeofenceManager(context: Context) {
         geofencingClient.addGeofences(geofencingRequest, geofencePendingIntent)
             .addOnSuccessListener {
                 Log.d("RADAR_MANAGER", "📍 Geovalla [${alarma.nombre}] activada. Radio: ${radioEfectivo}m")
-                // FIX: forzar lectura de ubicación para que Android inicialice
-                // el estado del geofence inmediatamente sin esperar Doze Mode
-                forzarActualizacionUbicacion()
+                // REVERTIDO: forzarActualizacionUbicacion() causaba falsos positivos
+                // en interior porque el GPS con poca precisión colocaba al usuario
+                // fuera del área, disparando alarmas "al salir" sin haberse movido.
+                // Android inicializa el geofence con la siguiente muestra pasiva,
+                // que con notificationResponsiveness(1_000) llega en pocos segundos.
             }
             .addOnFailureListener {
                 Log.e("RADAR_MANAGER", "❌ Error al activar [${alarma.nombre}]: ${it.message}")

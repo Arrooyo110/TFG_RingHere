@@ -21,6 +21,7 @@ import com.cdm.tfg_ringhere.data.local.AppDatabase
 import com.cdm.tfg_ringhere.data.repository.AlarmaRepository
 import com.cdm.tfg_ringhere.ui.create.CreateAlarmScreen
 import com.cdm.tfg_ringhere.ui.dashboard.DashboardScreen
+import com.cdm.tfg_ringhere.ui.dashboard.HistorialScreen
 import com.cdm.tfg_ringhere.ui.login.PantallaLogin
 import com.cdm.tfg_ringhere.ui.login.RegisterScreen
 import com.cdm.tfg_ringhere.ui.settings.AjustesScreen
@@ -126,6 +127,9 @@ class MainActivity : ComponentActivity() {
                         }
                         composable("ajustes") {
                             AjustesScreen(navController = navController)
+                        }
+                        composable("historial") {
+                            HistorialScreen(navController = navController)
                         }
                         composable(
                             route = "register/{isSpanish}",

@@ -8,6 +8,8 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -20,6 +22,8 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,6 +60,8 @@ fun DashboardScreen(navController: NavController, viewModel: AlarmaViewModel) {
 
     var isEditing by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         viewModel.cargarAlarmasDelUsuario(context)
@@ -92,70 +98,112 @@ fun DashboardScreen(navController: NavController, viewModel: AlarmaViewModel) {
         locationPermissionLauncher.launch(permisosAPedir.toTypedArray())
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = { TopBarDesign(navController = navController, viewModel = viewModel) },
-        bottomBar = { RingHereBottomBar(navController = navController, rutaActual = "dashboard") },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { navController.navigate("mapa") },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White,
-                shape = CircleShape,
-                modifier = Modifier.padding(bottom = 16.dp)
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet(
+                modifier = Modifier.width(280.dp),
+                drawerContainerColor = MaterialTheme.colorScheme.surface
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Añadir", modifier = Modifier.size(28.dp), tint = Color.White)
+                Spacer(modifier = Modifier.height(48.dp))
+                Row(
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Image(
+                        painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+                        contentDescription = null,
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text("RingHere", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                }
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp))
+                NavigationDrawerItem(
+                    label = { Text("Mis Alarmas", fontWeight = FontWeight.Medium) },
+                    selected = true,
+                    icon = { Icon(Icons.Default.Notifications, contentDescription = null) },
+                    onClick = { scope.launch { drawerState.close() } },
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+                NavigationDrawerItem(
+                    label = { Text("Historial", fontWeight = FontWeight.Medium) },
+                    selected = false,
+                    icon = { Icon(Icons.Default.DateRange, contentDescription = null) },
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        navController.navigate("historial")
+                    },
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
             }
         }
-    ) { paddingValues ->
+    ) {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            topBar = { TopBarDesign(navController = navController, viewModel = viewModel, onMenuClick = { scope.launch { drawerState.open() } }) },
+            bottomBar = { RingHereBottomBar(navController = navController, rutaActual = "dashboard") },
+            floatingActionButton = {
+                FloatingActionButton(
+                    onClick = { navController.navigate("mapa") },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White,
+                    shape = CircleShape,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Añadir", modifier = Modifier.size(28.dp), tint = Color.White)
+                }
+            }
+        ) { paddingValues ->
 
-        PullToRefreshBox(
-            isRefreshing = isRefreshing,
-            onRefresh = { viewModel.sincronizarAlarmas(context) },
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            LazyColumn(
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = { viewModel.sincronizarAlarmas(context) },
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .padding(paddingValues)
             ) {
-                item { Spacer(modifier = Modifier.height(8.dp)) }
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    item { Spacer(modifier = Modifier.height(8.dp)) }
 
-                item {
-                    HeroCardGPS(
-                        alarmaCercana = alarmaCercana,
-                        distanciaActual = distanciaMetros,
-                        isRadarActivo = radarActivo,
-                        onToggleRadar = { viewModel.alternarEstadoRadar(context) }
-                    )
+                    item {
+                        HeroCardGPS(
+                            alarmaCercana = alarmaCercana,
+                            distanciaActual = distanciaMetros,
+                            isRadarActivo = radarActivo,
+                            onToggleRadar = { viewModel.alternarEstadoRadar(context) }
+                        )
+                    }
+
+                    item {
+                        SectionHeader(
+                            alarmCount = alarmas.size,
+                            isEditing = isEditing,
+                            onEditClick = { isEditing = !isEditing }
+                        )
+                    }
+
+                    items(alarmas) { alarma ->
+                        AlarmaItemCard(
+                            alarma = alarma,
+                            isEditing = isEditing,
+                            onDelete = { viewModel.eliminarAlarma(alarma, context) },
+                            onToggle = { nuevoEstado ->
+                                viewModel.actualizarEstadoAlarma(alarma, nuevoEstado, context)
+                            }
+                        )
+                    }
+
+                    item { Spacer(modifier = Modifier.height(80.dp)) }
                 }
-
-                item {
-                    SectionHeader(
-                        alarmCount = alarmas.size,
-                        isEditing = isEditing,
-                        onEditClick = { isEditing = !isEditing }
-                    )
-                }
-
-                items(alarmas) { alarma ->
-                    AlarmaItemCard(
-                        alarma = alarma,
-                        isEditing = isEditing,
-                        onDelete = { viewModel.eliminarAlarma(alarma, context) },
-                        onToggle = { nuevoEstado ->
-                            viewModel.actualizarEstadoAlarma(alarma, nuevoEstado, context)
-                        }
-                    )
-                }
-
-                item { Spacer(modifier = Modifier.height(80.dp)) }
             }
         }
-    }
+    } // ModalNavigationDrawer
 }
 
 // =====================================================================
@@ -270,7 +318,7 @@ fun HeroCardGPS(
 }
 
 @Composable
-fun TopBarDesign(navController: NavController, viewModel: AlarmaViewModel) {
+fun TopBarDesign(navController: NavController, viewModel: AlarmaViewModel, onMenuClick: () -> Unit = {}) {
     var showMenu by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
@@ -288,6 +336,10 @@ fun TopBarDesign(navController: NavController, viewModel: AlarmaViewModel) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onMenuClick) {
+                Icon(Icons.Default.Menu, contentDescription = "Menú", tint = MaterialTheme.colorScheme.onSurface)
+            }
+            Spacer(modifier = Modifier.width(4.dp))
             Image(
                 painter = painterResource(id = R.mipmap.ic_launcher_foreground),
                 contentDescription = "Logo Ring Here",
