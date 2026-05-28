@@ -2,8 +2,12 @@
 
 RingHere es un sistema de alarmas basadas en ubicación (geofencing) compuesto por una aplicación nativa para Android, una API REST y un panel web de administración.
 
+## Enlaces del proyecto
+* **Panel Web:** https://arrooyo110.github.io/TFG_RingHere/
+* **Documentación API (Swagger):** https://ringhere-api.onrender.com/docs
+
 ## Características principales
-* Detección de geoalarmas en segundo plano.
+* Detección de geocercas en segundo plano.
 * Arquitectura offline-first con persistencia local de datos.
 * Sincronización automática con el servidor al recuperar la conexión.
 * Autenticación segura mediante tokens JWT.
