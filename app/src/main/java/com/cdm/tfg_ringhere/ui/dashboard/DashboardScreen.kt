@@ -183,6 +183,9 @@ fun DashboardScreen(navController: NavController, viewModel: AlarmaViewModel) {
                             alarma = alarma,
                             isEditing = isEditing,
                             onDelete = { viewModel.eliminarAlarma(alarma, context) },
+                            onEdit = {
+                                navController.navigate("crear_alarma/${alarma.latitud}/${alarma.longitud}?alarmaId=${alarma.id}")
+                            },
                             onToggle = { nuevoEstado ->
                                 viewModel.actualizarEstadoAlarma(alarma, nuevoEstado, context)
                             }
@@ -388,7 +391,13 @@ fun SectionHeader(alarmCount: Int, isEditing: Boolean, onEditClick: () -> Unit) 
 }
 
 @Composable
-fun AlarmaItemCard(alarma: Alarma, isEditing: Boolean, onDelete: () -> Unit, onToggle: (Boolean) -> Unit) {
+fun AlarmaItemCard(
+    alarma: Alarma,
+    isEditing: Boolean,
+    onDelete: () -> Unit,
+    onEdit: () -> Unit,
+    onToggle: (Boolean) -> Unit
+) {
     val isChecked = alarma.isActive
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -408,8 +417,18 @@ fun AlarmaItemCard(alarma: Alarma, isEditing: Boolean, onDelete: () -> Unit, onT
             }
 
             if (isEditing) {
-                IconButton(onClick = { onDelete() }) {
-                    Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Red)
+                // Fila para agrupar Editar y Borrar
+                Row {
+                    IconButton(onClick = { onEdit() }) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Editar",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    IconButton(onClick = { onDelete() }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Borrar", tint = Color.Red)
+                    }
                 }
             } else {
                 Switch(

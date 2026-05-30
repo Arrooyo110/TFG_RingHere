@@ -120,10 +120,23 @@ class MainActivity : ComponentActivity() {
                         composable("mapa") {
                             com.cdm.tfg_ringhere.ui.map.MapScreen(navController = navController, viewModel = viewModel)
                         }
-                        composable("crear_alarma/{lat}/{lng}") { backStackEntry ->
+                        composable(
+                            route = "crear_alarma/{lat}/{lng}?alarmaId={alarmaId}",
+                            arguments = listOf(
+                                navArgument("lat") { type = NavType.StringType },
+                                navArgument("lng") { type = NavType.StringType },
+                                navArgument("alarmaId") {
+                                    type = NavType.StringType
+                                    nullable = true
+                                    defaultValue = null
+                                }
+                            )
+                        ) { backStackEntry ->
                             val lat = backStackEntry.arguments?.getString("lat")?.toDouble() ?: 0.0
                             val lng = backStackEntry.arguments?.getString("lng")?.toDouble() ?: 0.0
-                            CreateAlarmScreen(navController, viewModel, lat, lng)
+                            val alarmaId = backStackEntry.arguments?.getString("alarmaId")
+
+                            CreateAlarmScreen(navController, viewModel, lat, lng, alarmaId)
                         }
                         composable("ajustes") {
                             AjustesScreen(navController = navController)

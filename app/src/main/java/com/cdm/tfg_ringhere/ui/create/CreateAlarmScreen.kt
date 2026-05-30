@@ -39,7 +39,8 @@ fun CreateAlarmScreen(
     navController: NavController,
     viewModel: AlarmaViewModel,
     lat: Double,
-    lng: Double
+    lng: Double,
+    alarmaId: String? = null
 ) {
     var nombreAlarma by remember { mutableStateOf("") }
     var radioValue by remember { mutableStateOf(450f) }
