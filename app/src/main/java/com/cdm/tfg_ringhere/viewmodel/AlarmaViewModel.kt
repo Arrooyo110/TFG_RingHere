@@ -228,25 +228,54 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
     }
 
     fun guardarNuevaAlarma(
-        nombre: String, lat: Double, lng: Double, radio: Float, alEntrar: Boolean, context: android.content.Context
+        alarmaId: String?, // Recibimos el ID opcional
+        nombre: String,
+        lat: Double,
+        lng: Double,
+        radio: Float,
+        alEntrar: Boolean,
+        context: android.content.Context
     ) {
         viewModelScope.launch {
             val sessionManager = com.cdm.tfg_ringhere.utils.SessionManager(context)
             val emailDueño = sessionManager.getUserEmail() ?: ""
 
-            val nuevaAlarma = Alarma(
-                nombre = nombre, latitud = lat, longitud = lng, radio = radio,
-                isAlEntrar = alEntrar, isActive = true, userEmail = emailDueño
+            // Si estamos editando, usamos su ID original. Si no, generamos uno nuevo.
+            val idDefinitivo = alarmaId ?: java.util.UUID.randomUUID().toString()
+
+            val alarmaGuardar = Alarma(
+                id = idDefinitivo,
+                nombre = nombre,
+                latitud = lat,
+                longitud = lng,
+                radio = radio,
+                isAlEntrar = alEntrar,
+                isActive = true,
+                userEmail = emailDueño
             )
 
-            repository.insert(nuevaAlarma)
-            getManager(context).anadirAlarmaAlRadar(nuevaAlarma)
+            // En local, Room machaca la antigua automáticamente porque tiene el mismo ID
+            repository.insert(alarmaGuardar)
 
+            // Reiniciamos el radar para asegurar que toma las coordenadas/radio nuevos
+            val manager = getManager(context)
+            if (alarmaId != null) {
+                manager.quitarAlarmaDelRadar(alarmaGuardar)
+            }
+            manager.anadirAlarmaAlRadar(alarmaGuardar)
+
+            // Sincronizamos con el endpoint correcto según si es edición o creación
             try {
                 val apiService = com.cdm.tfg_ringhere.data.network.RetrofitClient.getApiService(context)
-                apiService.crearAlarma(nuevaAlarma)
+                if (alarmaId != null) {
+                    apiService.actualizarAlarma(alarmaId, alarmaGuardar)
+                    Log.d("API_SYNC", "Alarma actualizada correctamente (PUT)")
+                } else {
+                    apiService.crearAlarma(alarmaGuardar)
+                    Log.d("API_SYNC", "Alarma creada correctamente (POST)")
+                }
             } catch (e: Exception) {
-                Log.e("API_SYNC", "Sin internet: ${e.message}")
+                Log.e("API_SYNC", "Operación offline guardada en local: ${e.message}")
             }
         }
     }

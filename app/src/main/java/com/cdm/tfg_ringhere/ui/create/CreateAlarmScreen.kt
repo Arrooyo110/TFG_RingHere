@@ -228,6 +228,7 @@ fun CreateAlarmScreen(
                 onClick = {
                     if (nombreAlarma.isNotBlank()) {
                         viewModel.guardarNuevaAlarma(
+                            alarmaId = alarmaId,
                             nombre = nombreAlarma,
                             lat = lat,
                             lng = lng,
