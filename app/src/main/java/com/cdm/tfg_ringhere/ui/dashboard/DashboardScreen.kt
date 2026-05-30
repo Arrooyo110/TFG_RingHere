@@ -1,8 +1,5 @@
 package com.cdm.tfg_ringhere.ui.dashboard
 
-// =====================================================================
-// 1. IMPORTACIONES
-// =====================================================================
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -40,15 +37,9 @@ import com.cdm.tfg_ringhere.ui.components.RingHereBottomBar
 import com.cdm.tfg_ringhere.utils.SessionManager
 import com.cdm.tfg_ringhere.viewmodel.AlarmaViewModel
 
-// =====================================================================
-// 2. COLORES SEMÁNTICOS (BATERÍA, GPS Y RADAR)
-// =====================================================================
 val EmeraldGreen = Color(0xFF057A55)
 val CyanGps = Color(0xFF31E2C2)
 
-// =====================================================================
-// 3. PANTALLA PRINCIPAL (DASHBOARD)
-// =====================================================================
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(navController: NavController, viewModel: AlarmaViewModel) {
@@ -155,7 +146,6 @@ fun DashboardScreen(navController: NavController, viewModel: AlarmaViewModel) {
                 }
             }
         ) { paddingValues ->
-
             PullToRefreshBox(
                 isRefreshing = isRefreshing,
                 onRefresh = { viewModel.sincronizarAlarmas(context) },
@@ -203,12 +193,10 @@ fun DashboardScreen(navController: NavController, viewModel: AlarmaViewModel) {
                 }
             }
         }
-    } // ModalNavigationDrawer
+    }
 }
 
-// =====================================================================
-// 4. COMPONENTES VISUALES ADAPTATIVOS
-// =====================================================================
+// --- Componentes visuales ---
 
 @Composable
 fun HeroCardGPS(
@@ -242,18 +230,8 @@ fun HeroCardGPS(
             Spacer(modifier = Modifier.height(8.dp))
 
             Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text = valorNumerico,
-                    color = Color.White,
-                    fontSize = 56.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = " $unidad",
-                    color = Color.White.copy(alpha = 0.9f),
-                    fontSize = 20.sp,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
+                Text(text = valorNumerico, color = Color.White, fontSize = 56.sp, fontWeight = FontWeight.Bold)
+                Text(text = " $unidad", color = Color.White.copy(alpha = 0.9f), fontSize = 20.sp, modifier = Modifier.padding(bottom = 12.dp))
             }
 
             Text(
@@ -346,12 +324,7 @@ fun TopBarDesign(navController: NavController, viewModel: AlarmaViewModel, onMen
                 modifier = Modifier.size(36.dp)
             )
             Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = "RingHere",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Text(text = "RingHere", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
         }
 
         Box {

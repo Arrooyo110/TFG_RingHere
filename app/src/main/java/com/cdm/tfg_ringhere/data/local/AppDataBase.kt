@@ -18,7 +18,6 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
-        // Crea el método getDatabase siguiendo el patrón Singleton
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -26,7 +25,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "app_database"
                 )
-                    .fallbackToDestructiveMigration() // Actualizar tablas si se realiza algun cambio
+                    .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
                 instance

@@ -14,7 +14,6 @@ class AlarmaRepository(private val alarmaDao: AlarmaDao) {
         alarmaDao.insertAlarma(alarma)
     }
 
-    // --- NUEVO ---
     suspend fun insertAlarmas(alarmas: List<Alarma>) {
         alarmaDao.insertAlarmas(alarmas)
     }
@@ -23,7 +22,6 @@ class AlarmaRepository(private val alarmaDao: AlarmaDao) {
         alarmaDao.deleteAlarma(alarma)
     }
 
-    // --- NUEVO ---
     suspend fun clearAlarmasByUser(email: String) {
         alarmaDao.clearAlarmasByUser(email)
     }

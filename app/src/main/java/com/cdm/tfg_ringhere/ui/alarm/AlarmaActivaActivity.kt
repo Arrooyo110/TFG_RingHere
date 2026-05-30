@@ -35,7 +35,7 @@ class AlarmaActivaActivity : ComponentActivity() {
     private var vibrator: Vibrator? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // 1. Configuración de pantalla por encima del bloqueo
+        // Mostrar por encima de la pantalla de bloqueo
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
@@ -51,12 +51,10 @@ class AlarmaActivaActivity : ComponentActivity() {
 
         val nombreAlarma = intent.getStringExtra("NOMBRE_ALARMA") ?: "Alarma Desconocida"
 
-        // 2. LEER PREFERENCIAS DEL USUARIO DE AJUSTESSCREEN
         val prefs = getSharedPreferences("RingHereSettings", Context.MODE_PRIVATE)
         val permitirVibracion = prefs.getBoolean("vibracion", true)
         val tonoSeleccionado = prefs.getString("tono_alarma", "Predeterminado del sistema") ?: "Predeterminado del sistema"
 
-        // 3. Aplicar configuración al hardware
         aplicarSonido(tonoSeleccionado)
         if (permitirVibracion) {
             aplicarVibracion()
@@ -71,19 +69,16 @@ class AlarmaActivaActivity : ComponentActivity() {
         }
     }
 
-    // =====================================================================
-    // LÓGICA DE AUDIO (Mapeo de los tonos personalizados)
-    // =====================================================================
+    // --- Audio ---
+
     private fun aplicarSonido(tono: String) {
-        if (tono == "Silencioso") return // Si es silencioso, no inicializamos el MediaPlayer
+        if (tono == "Silencioso") return
 
         try {
-            // Buscamos TUS archivos locales de la carpeta res/raw
             val uriTono: Uri = when (tono) {
                 "Radar (Predeterminado)" -> Uri.parse("android.resource://$packageName/${R.raw.radar_alarm}")
                 "Campana clásica" -> Uri.parse("android.resource://$packageName/${R.raw.classic_alarm}")
                 "Digital" -> Uri.parse("android.resource://$packageName/${R.raw.digital_alarm}")
-                "Predeterminado del sistema" -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
                 else -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
             }
 
@@ -94,7 +89,7 @@ class AlarmaActivaActivity : ComponentActivity() {
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .build()
                 setAudioAttributes(audioAttributes)
-                isLooping = true // Sonido en bucle infinito
+                isLooping = true
                 prepare()
                 start()
             }
@@ -103,9 +98,8 @@ class AlarmaActivaActivity : ComponentActivity() {
         }
     }
 
-    // =====================================================================
-    // LÓGICA DE VIBRACIÓN (Sujeta al interruptor Toggle)
-    // =====================================================================
+    // --- Vibración ---
+
     private fun aplicarVibracion() {
         vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
@@ -115,17 +109,18 @@ class AlarmaActivaActivity : ComponentActivity() {
             getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
         }
 
-        val pattern = longArrayOf(0, 700, 500) // Vibra 700ms, frena 500ms
+        val pattern = longArrayOf(0, 700, 500)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            vibrator?.vibrate(VibrationEffect.createWaveform(pattern, 0)) // Bucle desde el índice 0
+            vibrator?.vibrate(VibrationEffect.createWaveform(pattern, 0))
         } else {
             @Suppress("DEPRECATION")
             vibrator?.vibrate(pattern, 0)
         }
     }
 
+    // --- Apagado ---
+
     private fun apagarAlarmaYSalir() {
-        // 1. Cortamos el ruido y la vibración
         mediaPlayer?.stop()
         mediaPlayer?.release()
         vibrator?.cancel()
@@ -136,7 +131,6 @@ class AlarmaActivaActivity : ComponentActivity() {
             notificationManager.cancel(notificationId)
         }
 
-        // 2. Quitar el bloqueo si procede
         val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             keyguardManager.requestDismissKeyguard(this, null)
@@ -152,7 +146,8 @@ class AlarmaActivaActivity : ComponentActivity() {
     }
 }
 
-// --- INTERFAZ A PANTALLA COMPLETA ---
+// --- Interfaz a pantalla completa ---
+
 @Composable
 fun AlarmaScreenUI(nombreAlarma: String, onDesactivar: () -> Unit) {
     Surface(

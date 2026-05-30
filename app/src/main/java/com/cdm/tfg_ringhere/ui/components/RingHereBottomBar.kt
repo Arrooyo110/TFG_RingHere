@@ -26,7 +26,6 @@ fun RingHereBottomBar(navController: NavController, rutaActual: String) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp)
-            // 🌟 FONDO DINÁMICO: En modo claro será blanco, en oscuro será un gris carbón/negro según tu Theme.kt
             .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(32.dp))
             .padding(8.dp)
     ) {
@@ -35,7 +34,6 @@ fun RingHereBottomBar(navController: NavController, rutaActual: String) {
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 1. Botón Dashboard
             BottomBarItem(
                 icon = Icons.Default.List,
                 label = "MIS ALARMAS",
@@ -47,7 +45,6 @@ fun RingHereBottomBar(navController: NavController, rutaActual: String) {
                 }
             )
 
-            // 2. Botón Mapa
             BottomBarItem(
                 icon = Icons.Default.Place,
                 label = "MAPA",
@@ -57,7 +54,6 @@ fun RingHereBottomBar(navController: NavController, rutaActual: String) {
                 }
             )
 
-            // 3. Botón Ajustes
             BottomBarItem(
                 icon = Icons.Default.Settings,
                 label = "AJUSTES",
@@ -73,12 +69,11 @@ fun RingHereBottomBar(navController: NavController, rutaActual: String) {
 @Composable
 fun BottomBarItem(icon: ImageVector, label: String, isSelected: Boolean, onClick: () -> Unit) {
     if (isSelected) {
-        // Diseño ACTIVO (Tipo botón destacado)
         Button(
             onClick = onClick,
             colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary, // 🌟 DINÁMICO
-                contentColor = Color.White // El texto/icono en el botón siempre será blanco por contraste
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = Color.White
             ),
             shape = RoundedCornerShape(24.dp),
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
@@ -88,8 +83,6 @@ fun BottomBarItem(icon: ImageVector, label: String, isSelected: Boolean, onClick
             Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
     } else {
-        // Diseño INACTIVO (Solo icono y texto)
-        // 🌟 DINÁMICO: Utilizamos el color de texto del tema con una opacidad del 60% para indicar que no está seleccionado
         val colorInactivo = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
 
         Column(

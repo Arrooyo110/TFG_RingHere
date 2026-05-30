@@ -24,17 +24,15 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
     companion object {
         const val CHANNEL_ID = "geoalarmas_silencioso_v1"
-        // FIX: WakeLock tag para identificar el lock en logs del sistema
         const val WAKELOCK_TAG = "RingHere::GeofenceWakeLock"
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        // FIX: adquirir WakeLock inmediatamente al recibir el broadcast.
-        // Sin esto, Doze Mode puede suspender el proceso antes de que la notificación
-        // se lance, especialmente en Samsung/Xiaomi con ahorro de batería agresivo.
+        // Adquirir WakeLock inmediatamente para evitar que Doze Mode suspenda el proceso
+        // antes de lanzar la notificación, especialmente en dispositivos con ahorro agresivo.
         val wakeLock = (context.getSystemService(Context.POWER_SERVICE) as PowerManager)
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKELOCK_TAG)
-        wakeLock.acquire(10_000L) // Máximo 10 segundos, más que suficiente
+        wakeLock.acquire(10_000L)
 
         try {
             val geofencingEvent = GeofencingEvent.fromIntent(intent)
@@ -49,23 +47,25 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             val geofenceTransition = geofencingEvent.geofenceTransition
 
             if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_ENTER ||
+                geofenceTransition == Geofence.GEOFENCE_TRANSITION_DWELL ||
                 geofenceTransition == Geofence.GEOFENCE_TRANSITION_EXIT
             ) {
                 geofencingEvent.triggeringGeofences?.forEach { geofence ->
                     val partes = geofence.requestId.split("|")
                     val nombreAlarma = if (partes.size > 1) partes[1] else "Alarma"
-                    val accion = if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_ENTER)
-                        "Entrando a" else "Saliendo de"
 
-                    Log.d("RADAR", "✅ Transición detectada: $accion $nombreAlarma")
+                    // Si es EXIT es salir, cualquier otra (ENTER o DWELL) es entrar
+                    val accion = if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_EXIT)
+                        "Saliendo de" else "Entrando a"
 
-                    // Guardar evento en historial con ubicación exacta del disparo
+                    Log.d("RADAR", "Transición detectada: $accion $nombreAlarma")
+
                     val ubicacion = geofencingEvent.triggeringLocation
                     guardarEventoEnHistorial(
                         context = context,
                         alarmaId = partes[0],
                         nombreAlarma = nombreAlarma,
-                        tipoTransicion = if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_ENTER) "ENTRAR" else "SALIR",
+                        tipoTransicion = if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_EXIT) "SALIR" else "ENTRAR",
                         lat = ubicacion?.latitude ?: 0.0,
                         lng = ubicacion?.longitude ?: 0.0
                     )
@@ -77,8 +77,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             }
 
         } finally {
-            // FIX: liberar siempre en el bloque finally, incluso si hay excepción,
-            // para no dejar el WakeLock activo y drenar la batería
+            // Liberar siempre en finally para no dejar el WakeLock activo
             if (wakeLock.isHeld) wakeLock.release()
         }
     }
@@ -101,9 +100,9 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                     longitudDetectada = lng
                 )
                 AppDatabase.getDatabase(context).eventoAlarmaDao().insertEvento(evento)
-                Log.d("RADAR", "📋 Evento guardado en historial: $nombreAlarma ($tipoTransicion) @ $lat,$lng")
+                Log.d("RADAR", "Evento guardado: $nombreAlarma ($tipoTransicion) @ $lat,$lng")
             } catch (e: Exception) {
-                Log.e("RADAR", "❌ Error guardando historial: ${e.message}")
+                Log.e("RADAR", "Error guardando historial: ${e.message}")
             }
         }
     }

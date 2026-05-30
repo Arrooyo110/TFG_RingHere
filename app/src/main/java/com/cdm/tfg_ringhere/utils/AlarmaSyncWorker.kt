@@ -6,6 +6,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.cdm.tfg_ringhere.data.local.AppDatabase
 import com.cdm.tfg_ringhere.data.repository.AlarmaRepository
+import kotlinx.coroutines.flow.first
 
 class AlarmaSyncWorker(
     context: Context,
@@ -30,18 +31,34 @@ class AlarmaSyncWorker(
                     val alarmasNube = response.body()!!
                     val alarmasDeEsteUsuario = alarmasNube.filter { it.userEmail == email }
 
-                    repository.clearAlarmasByUser(email)
-                    repository.insertAlarmas(alarmasDeEsteUsuario)
+                    val alarmasLocales = repository.getAlarmasByUser(email).first()
 
-                    // FIX: reregistrar geofences después de sincronizar.
-                    // Al hacer clearAlarmasByUser + insertAlarmas los geofences anteriores
-                    // siguen registrados en Google Play Services con IDs que ya no existen
-                    // en la BD local, y los nuevos no tienen geofence activo todavía.
-                    // Reregistrar aquí garantiza que siempre estén en sincronía.
-                    val alarmasActivas = alarmasDeEsteUsuario.filter { it.isActive }
+                    val idsNube = alarmasDeEsteUsuario.map { it.id }
+                    val alarmasPendientes = alarmasLocales.filter { it.id !in idsNube }
+
+                    alarmasPendientes.forEach { alarmaPendiente ->
+                        try {
+                            apiService.crearAlarma(alarmaPendiente)
+                            Log.d("AlarmaSyncWorker", "Alarma offline subida: ${alarmaPendiente.nombre}")
+                        } catch (e: Exception) {
+                            Log.e("AlarmaSyncWorker", "Error subiendo alarma offline: ${e.message}")
+                        }
+                    }
+
+                    val responseFinal = apiService.obtenerAlarmas()
+                    val listaDefinitiva = if (responseFinal.isSuccessful && responseFinal.body() != null) {
+                        responseFinal.body()!!.filter { it.userEmail == email }
+                    } else {
+                        alarmasDeEsteUsuario
+                    }
+
+                    repository.clearAlarmasByUser(email)
+                    repository.insertAlarmas(listaDefinitiva)
+
+                    val alarmasActivas = listaDefinitiva.filter { it.isActive }
                     if (alarmasActivas.isNotEmpty()) {
                         GeofenceManager(applicationContext).reregistrarTodas(alarmasActivas)
-                        Log.d("AlarmaSyncWorker", "🔄 Geofences reregistrados: ${alarmasActivas.size}")
+                        Log.d("AlarmaSyncWorker", "Geofences reregistrados: ${alarmasActivas.size}")
                     }
                 }
             }

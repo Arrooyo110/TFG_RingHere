@@ -6,7 +6,7 @@ data class TokenResponse(
     val token_type: String
 )
 
-// Lo que recibimos al pedir las Alarmas (Fíjate que es igual al schema de Python)
+// Lo que recibimos al pedir las Alarmas
 data class AlarmaNetwork(
     val id: String,
     val nombre: String,

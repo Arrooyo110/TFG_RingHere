@@ -35,24 +35,16 @@ class GeofenceManager(context: Context) {
 
     @SuppressLint("MissingPermission")
     fun anadirAlarmaAlRadar(alarma: Alarma) {
-        // Para "al entrar" usamos DWELL en vez de ENTER:
-        // ENTER dispara en cuanto el GPS dice que cruzaste, incluso si es
-        // un bounce puntual o vas en coche a alta velocidad.
-        // DWELL espera loiteringDelay ms dentro del área antes de confirmar,
-        // filtrando falsas entradas y pasos rápidos sin intención de quedarse.
-        // Para "al salir" mantenemos EXIT (no hay equivalente de dwell para salida).
+        // Añadimos ENTER junto con DWELL usando 'or'
         val tipoTransicion = if (alarma.isAlEntrar) {
-            Geofence.GEOFENCE_TRANSITION_DWELL
+            Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_DWELL
         } else {
             Geofence.GEOFENCE_TRANSITION_EXIT
         }
 
-        // Radio mínimo 100m — por debajo Android es muy poco fiable con geofencing
-        // Radio mínimo 200m: con 100m y velocidad de coche (~50km/h) el sistema
-        // de geofencing puede no muestrear a tiempo y perder la transición
         val radioEfectivo = alarma.radio.coerceAtLeast(200f)
         if (alarma.radio < 200f) {
-            Log.w("RADAR_MANAGER", "⚠️ Radio ${alarma.radio}m aumentado a 200m por fiabilidad")
+            Log.w("RADAR_MANAGER", "Advertencia: Radio ${alarma.radio}m aumentado a 200m por fiabilidad")
         }
 
         val geofence = Geofence.Builder()
@@ -60,12 +52,9 @@ class GeofenceManager(context: Context) {
             .setCircularRegion(alarma.latitud, alarma.longitud, radioEfectivo)
             .setExpirationDuration(Geofence.NEVER_EXPIRE)
             .setTransitionTypes(tipoTransicion)
-            // FIX: por defecto Android espera ~5 min para notificar, con 1000ms es casi inmediato
             .setNotificationResponsiveness(1_000)
-            // loiteringDelay: tiempo que debes estar dentro antes de confirmar DWELL.
-            // Solo aplica a alarmas "al entrar". 15s es suficiente para filtrar
-            // pasos rápidos en coche pero no demasiado para uso peatonal.
-            .setLoiteringDelay(15_000)
+            // Reducimos el tiempo a 5 segundos para las pruebas
+            .setLoiteringDelay(5000)
             .build()
 
         // FIX: setInitialTrigger(0) es correcto para el comportamiento deseado:

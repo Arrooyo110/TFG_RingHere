@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 
 class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
 
@@ -29,7 +30,6 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
-    // --- ESTADOS PARA EL RADAR EN TIEMPO REAL ---
     private val _radarActivo = MutableStateFlow(true)
     val radarActivo: StateFlow<Boolean> = _radarActivo.asStateFlow()
 
@@ -42,7 +42,6 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
     private var fusedLocationClient: FusedLocationProviderClient? = null
     private var locationCallback: LocationCallback? = null
     private var ubicacionActual: Location? = null
-    // --------------------------------------------
 
     private var jobAlarmas: kotlinx.coroutines.Job? = null
     private val _loginExitoso = MutableStateFlow(false)
@@ -60,16 +59,14 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
         return geofenceManager!!
     }
 
-    // --- NUEVO: Motor de Rastreo GPS ---
-    @SuppressLint("MissingPermission") // Los permisos ya se piden en la UI
+    @SuppressLint("MissingPermission")
     fun iniciarRastreoUbicacion(context: android.content.Context) {
         if (fusedLocationClient == null) {
             fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
         }
 
-        // Configuramos la petición: Alta precisión, actualiza cada 5 segundos
         val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000)
-            .setMinUpdateDistanceMeters(5f) // Solo actualiza si el usuario se mueve 5 metros
+            .setMinUpdateDistanceMeters(5f)
             .build()
 
         locationCallback = object : LocationCallback() {
@@ -94,12 +91,10 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
         }
     }
 
-    // --- NUEVO: Matemática de Distancias ---
     private fun calcularAlarmaMasCercana() {
         val miPosicion = ubicacionActual
         val listaActivas = _alarmas.value.filter { it.isActive }
 
-        // Si el radar está pausado, no hay GPS, o no hay alarmas activas, reseteamos la tarjeta
         if (!_radarActivo.value || miPosicion == null || listaActivas.isEmpty()) {
             _alarmaCercana.value = null
             _distanciaCercanaMetros.value = null
@@ -114,7 +109,6 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
                 latitude = alarma.latitud
                 longitude = alarma.longitud
             }
-            // Math magic nativa de Android: Distancia en línea recta en metros
             val distancia = miPosicion.distanceTo(locationAlarma)
 
             if (distancia < distanciaMinima) {
@@ -126,7 +120,6 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
         _alarmaCercana.value = alarmaMasCerca
         _distanciaCercanaMetros.value = distanciaMinima
     }
-    // --------------------------------------------
 
     fun alternarEstadoRadar(context: android.content.Context) {
         _radarActivo.value = !_radarActivo.value
@@ -151,7 +144,7 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
         jobAlarmas = viewModelScope.launch {
             repository.getAlarmasByUser(email).collect { misAlarmas ->
                 _alarmas.value = misAlarmas
-                calcularAlarmaMasCercana() // Recalcula si borramos/añadimos una alarma
+                calcularAlarmaMasCercana()
             }
         }
     }
@@ -170,11 +163,32 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
                     if (response.isSuccessful && response.body() != null) {
                         val alarmasNube = response.body()!!
                         val alarmasDeEsteUsuario = alarmasNube.filter { it.userEmail == email }
+
+                        val alarmasLocales = repository.getAlarmasByUser(email).first()
+
+                        val idsNube = alarmasDeEsteUsuario.map { it.id }
+                        val alarmasPendientes = alarmasLocales.filter { it.id !in idsNube }
+
+                        alarmasPendientes.forEach { alarmaPendiente ->
+                            try {
+                                apiService.crearAlarma(alarmaPendiente)
+                                Log.d("API_SYNC", "Alarma offline subida: ${alarmaPendiente.nombre}")
+                            } catch (e: Exception) {
+                                Log.e("API_SYNC", "Error subiendo alarma offline: ${e.message}")
+                            }
+                        }
+
+                        val responseFinal = apiService.obtenerAlarmas()
+                        val listaDefinitiva = if (responseFinal.isSuccessful && responseFinal.body() != null) {
+                            responseFinal.body()!!.filter { it.userEmail == email }
+                        } else {
+                            alarmasDeEsteUsuario
+                        }
+
                         repository.clearAlarmasByUser(email)
-                        repository.insertAlarmas(alarmasDeEsteUsuario)
-                        // Reregistrar geofences tras sincronizar — los IDs anteriores
-                        // ya no existen y los nuevos no tienen geofence activo todavía
-                        val alarmasActivas = alarmasDeEsteUsuario.filter { it.isActive }
+                        repository.insertAlarmas(listaDefinitiva)
+
+                        val alarmasActivas = listaDefinitiva.filter { it.isActive }
                         if (alarmasActivas.isNotEmpty()) {
                             getManager(context).reregistrarTodas(alarmasActivas)
                         }
