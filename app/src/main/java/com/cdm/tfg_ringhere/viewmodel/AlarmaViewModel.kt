@@ -227,7 +227,7 @@ class AlarmaViewModel(private val repository: AlarmaRepository) : ViewModel() {
         }
     }
 
-    fun guardarNuevaAlarma(
+    fun guardarAlarma(
         alarmaId: String?, // Recibimos el ID opcional
         nombre: String,
         lat: Double,

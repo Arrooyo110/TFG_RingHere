@@ -1,6 +1,13 @@
 package com.cdm.tfg_ringhere.ui.create
 
 import android.content.Context
+import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -16,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -24,6 +32,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.cdm.tfg_ringhere.ui.map.MapOptionData
 import com.cdm.tfg_ringhere.viewmodel.AlarmaViewModel
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -48,7 +57,6 @@ fun CreateAlarmScreen(
 
     val context = LocalContext.current
 
-    // --- Tema reactivo ---
     val prefs = remember { context.getSharedPreferences("RingHereSettings", Context.MODE_PRIVATE) }
     var temaConfigurado by remember { mutableStateOf(prefs.getString("tema_app", "Predeterminado del sistema") ?: "Predeterminado del sistema") }
 
@@ -68,16 +76,20 @@ fun CreateAlarmScreen(
         else -> isSystemInDarkTheme()
     }
 
-    // --- Configuración del mapa ---
     val ubicacionSeleccionada = LatLng(lat, lng)
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(ubicacionSeleccionada, 15f)
     }
 
-    val mapProperties = remember(esModoOscuro) {
+    var selectedOption by remember { mutableStateOf(MapOptionData.Standard) }
+    var layersMenuExpanded by remember { mutableStateOf(false) }
+
+    val mapProperties = remember(esModoOscuro, selectedOption) {
         MapProperties(
-            mapType = MapType.NORMAL,
-            mapStyleOptions = if (esModoOscuro) MapStyleOptions(getDarkMapJsonStyle()) else null
+            mapType = selectedOption.type,
+            mapStyleOptions = if (esModoOscuro && selectedOption.type == MapType.NORMAL) {
+                MapStyleOptions(getDarkMapJsonStyle())
+            } else null
         )
     }
 
@@ -101,9 +113,10 @@ fun CreateAlarmScreen(
                 .padding(paddingValues)
                 .padding(horizontal = 24.dp)
         ) {
-            // --- Nombre ---
             Text("NOMBRE DE LA ALARMA", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+
             Spacer(modifier = Modifier.height(8.dp))
+
             OutlinedTextField(
                 value = nombreAlarma,
                 onValueChange = { nombreAlarma = it },
@@ -121,13 +134,11 @@ fun CreateAlarmScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // --- Ubicación ---
             Text("Ubicación", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             Text("Define el radio de activación", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // --- Mapa preview ---
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -158,20 +169,25 @@ fun CreateAlarmScreen(
                     )
                 }
 
-                Column(
+                Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(12.dp)
                 ) {
-                    MapMiniButton(Icons.Default.MyLocation)
-                    MapMiniButton(Icons.Default.Layers)
+                    MapLayerMiniSelector(
+                        isExpanded = layersMenuExpanded,
+                        currentOption = selectedOption,
+                        onToggleExpand = { layersMenuExpanded = !layersMenuExpanded },
+                        onOptionSelected = {
+                            selectedOption = it
+                            layersMenuExpanded = false
+                        }
+                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // --- Radio ---
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.SettingsInputAntenna, contentDescription = null, tint = AccentCyan)
                 Spacer(modifier = Modifier.width(8.dp))
@@ -201,9 +217,10 @@ fun CreateAlarmScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // --- Tipo de activación ---
             Text("TIPO DE ACTIVACIÓN", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+
             Spacer(modifier = Modifier.height(12.dp))
+
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 ActivationOption(
                     text = "Al entrar",
@@ -223,11 +240,10 @@ fun CreateAlarmScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // --- Guardar ---
             Button(
                 onClick = {
                     if (nombreAlarma.isNotBlank()) {
-                        viewModel.guardarNuevaAlarma(
+                        viewModel.guardarAlarma(
                             alarmaId = alarmaId,
                             nombre = nombreAlarma,
                             lat = lat,
@@ -240,7 +256,7 @@ fun CreateAlarmScreen(
                             popUpTo("dashboard") { inclusive = true }
                         }
                     } else {
-                        android.widget.Toast.makeText(context, "Por favor, ponle un nombre a la alarma", android.widget.Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Por favor, ponle un nombre a la alarma", Toast.LENGTH_SHORT).show()
                     }
                 },
                 modifier = Modifier
@@ -258,36 +274,90 @@ fun CreateAlarmScreen(
     }
 }
 
-// --- Subcomponentes ---
-
 @Composable
-fun MapMiniButton(icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    Surface(
-        modifier = Modifier.size(36.dp),
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 2.dp
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
-        }
-    }
-}
-
-@Composable
-fun ActivationOption(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier) {
+fun ActivationOption(text: String, icon: ImageVector, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier) {
     Surface(
         modifier = modifier
             .height(50.dp)
             .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-        border = if (isSelected) null else androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)
+        border = if (isSelected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
             Icon(icon, contentDescription = null, tint = if (isSelected) Color.White else MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(8.dp))
             Text(text, color = if (isSelected) Color.White else MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        }
+    }
+}
+
+@Composable
+fun MapLayerMiniSelector(
+    isExpanded: Boolean,
+    currentOption: MapOptionData,
+    onToggleExpand: () -> Unit,
+    onOptionSelected: (MapOptionData) -> Unit
+) {
+    Column(horizontalAlignment = Alignment.End) {
+        AnimatedVisibility(
+            visible = isExpanded,
+            enter = fadeIn() + expandVertically(expandFrom = Alignment.Bottom),
+            exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Bottom)
+        ) {
+            Surface(
+                modifier = Modifier
+                    .padding(bottom = 8.dp)
+                    .width(140.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = 4.dp
+            ) {
+                Column(modifier = Modifier.padding(4.dp)) {
+                    MapOptionData.entries.forEach { option ->
+                        val isSelected = option == currentOption
+                        val backgroundColor = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent
+                        val contentColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(backgroundColor)
+                                .clickable { onOptionSelected(option) }
+                                .padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(option.icon, contentDescription = null, tint = contentColor, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = option.title,
+                                color = contentColor,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Surface(
+            modifier = Modifier
+                .size(36.dp)
+                .clickable { onToggleExpand() },
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 2.dp
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Default.Layers,
+                    contentDescription = "Capas",
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         }
     }
 }
